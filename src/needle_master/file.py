@@ -9,4 +9,4 @@ def ParseEnvironmentName(filename):
 
 def ParseDemoName(filename):
     toks = filename.split('.')[0].split('_')
-    return (toks[1],toks[2])
+    return (int(toks[1]),toks[2])
