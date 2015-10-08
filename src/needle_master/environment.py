@@ -9,8 +9,10 @@ import numpy as np
 
 class Environment:
     
-    def __init__(self):
-        pass
+    def __init__(self,filename=None):
+        if not filename is None:
+            handle = file(filename,'r')
+            self.Load(handle)
     
     '''
     Load an environment file.

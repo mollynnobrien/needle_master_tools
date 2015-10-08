@@ -13,8 +13,11 @@ You can pull this data out as a Numpy array.
 '''
 class Demo:
     
-    def __init__(self):
-        pass
+    def __init__(self,filename=None):
+        if not filename is None:
+            handle = file(filename,'r')
+            self.Load(handle)
+
     
     '''
     Load demonstration from a file

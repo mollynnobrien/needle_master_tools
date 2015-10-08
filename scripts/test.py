@@ -11,4 +11,4 @@ for file in files:
         demo = nm.Demo(file)
     elif file[:11] == 'environment':
         # process as an environment
-
+        env = nm.Environment(file)
