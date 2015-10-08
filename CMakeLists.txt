@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(grid_plan)
+project(needle_master_tools)
 
 add_definitions(-g -std=c++0x -pthread)
 
