@@ -9,7 +9,7 @@ add_definitions(-g -std=c++0x -pthread)
 find_package(catkin REQUIRED COMPONENTS)
 
 ## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED COMPONENTS python thread)
+find_package(Boost REQUIRED COMPONENTS python thread polygon)
 find_package(PythonLibs 2.7 REQUIRED)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules)

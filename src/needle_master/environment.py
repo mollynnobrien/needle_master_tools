@@ -101,7 +101,7 @@ class Gate:
     def Contains(self,demo):
         #print demo.s.shape
         #print [x for x in demo.s]
-        return [[self.box.encloses_point(sympy.Point(x[:2])), self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
+        return [self.box.encloses_point(sympy.Point(x[:2])) for x in demo.s]#, self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
 
     def Features(self,demo):
         return False
