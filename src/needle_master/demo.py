@@ -31,7 +31,7 @@ class Demo:
             self.env = env
     
     def Draw(self):
-        plt.plot(self.s[0,:],self.s[1,:])
+        plt.plot(self.s[:,0],self.s[:,1])
 
     '''
     Load demonstration from a file
@@ -52,7 +52,7 @@ class Demo:
 
             data = handle.readline()
         
-        self.t = np.array(t).transpose()
-        self.s = np.array(s).transpose()
-        self.s[1,:] = self.s[1,:]
-        self.u = np.array(u).transpose()
+        self.t = np.array(t)#.transpose()
+        self.s = np.array(s)#.transpose()
+        #self.s[1,:] = self.s[1,:]
+        self.u = np.array(u)#.transpose()

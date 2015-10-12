@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
+import sympy
 
 def SafeLoadLine(name,handle):
     l = handle.readline()[:-1].split(': ')
@@ -43,7 +44,12 @@ class Environment:
             surface.Draw()
         for gate in self.gates:
             gate.Draw()
-    
+
+    def InGate(self,demo):
+        for gate in self.gates:
+            print gate.Contains(demo)
+        return False
+
     '''
     Load an environment file.
     '''
@@ -67,6 +73,7 @@ class Environment:
         self.nsurfaces = int(D[0])
         print " - num surfaces=%d"%(self.nsurfaces)
 
+
         for i in range(self.nsurfaces):
             s = Surface(self.width,self.height)
             s.Load(handle)
@@ -84,9 +91,21 @@ class Gate:
         self.width = 0
         self.height = 0
 
+        self.box = None
+        self.bottom_box = None
+        self.top_box = None
+
         self.env_width = env_width
         self.env_height = env_height
     
+    def Contains(self,demo):
+        #print demo.s.shape
+        #print [x for x in demo.s]
+        return [[self.box.encloses_point(sympy.Point(x[:2])), self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
+
+    def Features(self,demo):
+        return False
+
     def Draw(self,gamecolor=True):
         c1 = [251./255, 216./255, 114./255];
         c2 = [255./255, 50./255, 12./255];
@@ -151,6 +170,14 @@ class Gate:
 
         # compute gate height and width
 
+        # compute other things like polygon
+        p1,p2,p3,p4 = [x[:2] for x in self.corners]
+        self.box = sympy.Polygon(p1,p2,p3,p4)
+        p1,p2,p3,p4 = [x[:2] for x in self.top]
+        self.top_box = sympy.Polygon(p1,p2,p3,p4)
+        p1,p2,p3,p4 = [x[:2] for x in self.bottom]
+        self.bottom_box = sympy.Polygon(p1,p2,p3,p4)
+
 class Surface:
 
     def __init__(self,env_width,env_height):
@@ -160,6 +187,8 @@ class Surface:
 
         self.env_width = env_width
         self.env_height = env_height
+
+        self.poly = None
 
     def Draw(self):
         axes = plt.gca()
@@ -183,3 +212,5 @@ class Surface:
             self.color = [232./255, 146./255, 124./255]
         else:
             self.color = [207./255, 69./255, 32./255]
+
+        self.poly = sympy.Polygon(*[x[:2] for x in self.corners])
