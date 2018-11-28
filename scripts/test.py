@@ -2,9 +2,15 @@
 
 import needle_master as nm
 import os
+from pdb import set_trace as woah
+
+import matplotlib
+
+if os.environ.get('DISPLAY','') == '':
+    print('no display found. Using non-interactive Agg backend')
+    matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
-
 files = os.listdir('.')
 
 start_idx = 1
@@ -31,5 +37,5 @@ for file in files:
             demo = nm.Demo(env_height=envs[env-1].height,env_width=envs[env-1].width,filename=file)
             plt.subplot(2,ncols,env)
             demo.Draw()
-
+plt.savefig('test_output.png')
 plt.show()

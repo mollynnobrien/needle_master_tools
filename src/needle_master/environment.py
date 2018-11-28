@@ -6,6 +6,8 @@ Created on Thu Oct 08 11:30:52 2015
 """
 
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
@@ -21,7 +23,7 @@ def ArrayToTuples(array):
     return zip(array[:,0],array[:,1])
 
 class Environment:
-    
+
     def __init__(self,filename=None):
 
         self.height = 0
@@ -80,7 +82,7 @@ class Environment:
             self.surfaces.append(s)
 
 class Gate:
-    
+
     def __init__(self,env_width,env_height):
         self.x = 0
         self.y = 0
@@ -97,7 +99,7 @@ class Gate:
 
         self.env_width = env_width
         self.env_height = env_height
-    
+
     def Contains(self,demo):
         #print demo.s.shape
         #print [x for x in demo.s]
@@ -161,7 +163,7 @@ class Gate:
 
         avgtopy = np.mean(self.top[:,1])
         avgbottomy = np.mean(self.bottom[:,1])
-    
+
         # flip top and bottom if necessary
         if avgtopy < avgbottomy:
             tmp = self.top
@@ -214,3 +216,40 @@ class Surface:
             self.color = [207./255, 69./255, 32./255]
 
         self.poly = sympy.Polygon(*[x[:2] for x in self.corners])
+
+"""
+        Added by Molly 11/28/2018
+"""
+class Needle:
+    self.x = 0
+    self.y = 0
+    self.w = 0
+    self.corners = np.zeros((4,2))
+
+
+
+    self.env_width = env_width
+    self.env_height = env_height
+
+
+
+    self.needle_color  = [134, 200, 188]
+    self.thread_color  = [167, 188, 214]
+
+    self.thread_points = []
+
+    def __init__(self,env_width,env_height):
+        something = 5
+
+    def Draw(self):
+        """ draw needle """
+
+        """ draw thread """
+
+    def Load(self, handle)
+
+
+    def Move(self, movement):
+        """
+            Given an input, move the needle. Update the position, orientation, and thread path
+        """
