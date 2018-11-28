@@ -221,35 +221,38 @@ class Surface:
         Added by Molly 11/28/2018
 """
 class Needle:
-    self.x = 0
-    self.y = 0
-    self.w = 0
-    self.corners = np.zeros((4,2))
-
-
-
-    self.env_width = env_width
-    self.env_height = env_height
-
-
-
-    self.needle_color  = [134, 200, 188]
-    self.thread_color  = [167, 188, 214]
-
-    self.thread_points = []
 
     def __init__(self,env_width,env_height):
         something = 5
+        self.x = 0
+        self.y = 0
+        self.w = 0
+        self.corners = np.zeros((4,2))
+
+
+
+        self.env_width = env_width
+        self.env_height = env_height
+
+
+
+        self.needle_color  = [134, 200, 188]
+        self.thread_color  = [167, 188, 214]
+
+        self.thread_points = []
 
     def Draw(self):
+        pass
         """ draw needle """
 
         """ draw thread """
 
-    def Load(self, handle)
+    def Load(self, handle):
+        pass
 
 
     def Move(self, movement):
+        pass
         """
             Given an input, move the needle. Update the position, orientation, and thread path
         """
