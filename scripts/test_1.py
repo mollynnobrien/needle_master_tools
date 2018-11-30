@@ -7,6 +7,7 @@
 """
 import os
 import needle_master as nm
+import matplotlib.pyplot as plt
 from pdb import set_trace as woah
 
 """ set paths """
@@ -15,11 +16,10 @@ tool_dir      = workspace_dir + 'src/needle_master_tools/'
 exp_dir       = workspace_dir + 'experiments/needle_master_tools/'
 
 """ select world """
-world       = 'needle_master'
 env_dir     = exp_dir + 'environments/'
 demo_dir    = exp_dir + 'demonstrations/'
 
-env_number = 10
+env_number = 14
 env_name   = 'environment_' + str(env_number) + '.txt'
 
 """ load environment """
@@ -35,7 +35,11 @@ for file in os.listdir(demo_dir):
         demo = nm.Demo(env_height=environment.height,env_width=environment.width,filename=demo_dir + file)
         demos.append(demo)
 
-woah()
+environment.Draw()
+plt.gca().invert_xaxis()
+plt.savefig('test_1_output.png')
+plt.show()
+# woah()
 
 """
 ===================================

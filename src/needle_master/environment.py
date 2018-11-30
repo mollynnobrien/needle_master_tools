@@ -4,14 +4,16 @@ Created on Thu Oct 08 11:30:52 2015
 
 @author: Chris Paxton
 """
-
+import math
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon as Poly
+from shapely.geometry import Polygon, Point # using to replace sympy
 from matplotlib.collections import PatchCollection
-from matplotlib.patches import Polygon
-import sympy
+
+from pdb import set_trace as woah
 
 def SafeLoadLine(name,handle):
     l = handle.readline()[:-1].split(': ')
@@ -31,6 +33,9 @@ class Environment:
         self.ngates = 0
         self.gates = []
         self.surfaces = []
+        self.t = 0
+        self.needle = None
+        self.game_time = 20
 
         if not filename is None:
             print 'Loading environment from "%s"...'%(filename)
@@ -38,7 +43,9 @@ class Environment:
             self.Load(handle)
             handle.close()
 
-    def Draw(self,gamecolor=True):
+            self.needle = Needle(self.width, self.height)
+
+    def Draw(self, save_image=False, gamecolor=True):
         axes = plt.gca()
         plt.ylim(self.height)
         plt.xlim(self.width)
@@ -46,6 +53,13 @@ class Environment:
             surface.Draw()
         for gate in self.gates:
             gate.Draw()
+
+        self.needle.Draw()
+
+        if(save_image):
+            plt.gca().invert_xaxis()
+            plt.savefig(str(self.t) + '.png')
+            plt.close('all')
 
     def InGate(self,demo):
         for gate in self.gates:
@@ -81,6 +95,53 @@ class Environment:
             s.Load(handle)
             self.surfaces.append(s)
 
+    def step(self, action):
+        """
+            Move one time step forward
+        """
+        self.needle.Move(action)
+        self.t = self.t + 1
+
+    def check_status(self):
+        """
+            verify if the game is in a valid state and can
+            keep playing
+        """
+        # is the needle off the screen?
+        x = self.needle.x
+        y = self.needle.y
+
+        valid_x = (x >= 0) and (x <= self.width)
+        valid_y = (y >= 0) and (y <= self.height)
+        valid_pos = valid_x and valid_y
+        if(not valid_pos):
+            print("Invalid position")
+
+        # have you hit deep tissue?
+        valid_deep = not self.deep_tissue_intersect()
+        if(not valid_deep):
+            print("Punctured deep tissue")
+        # are you out of time?
+        valid_t = self.t < self.game_time
+        if(not valid_t):
+            print("Ran out of game time")
+
+        return valid_pos and valid_deep and valid_t
+
+    def deep_tissue_intersect(self):
+        """
+            check each surface, does the needle intersect the
+            surface? is the surface deep?
+        """
+        intersect = False
+
+        for s in self.surfaces:
+            if(s.deep): # we only care about intersecting deep tissue
+                s_intersect = self.needle.poly.intersection(s.poly).area > 0
+                intersect = intersect or s_intersect
+
+        return intersect
+
 class Gate:
 
     def __init__(self,env_width,env_height):
@@ -101,9 +162,7 @@ class Gate:
         self.env_height = env_height
 
     def Contains(self,demo):
-        #print demo.s.shape
-        #print [x for x in demo.s]
-        return [self.box.encloses_point(sympy.Point(x[:2])) for x in demo.s]#, self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
+        return [self.box.contains(Point(x)) for x in demo.s]#, self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
 
     def Features(self,demo):
         return False
@@ -121,9 +180,9 @@ class Gate:
           ce = [0.66, 0.66, 0.66];
 
         axes = plt.gca()
-        axes.add_patch(Polygon(ArrayToTuples(self.corners),color=c1))
-        axes.add_patch(Polygon(ArrayToTuples(self.top),color=c2))
-        axes.add_patch(Polygon(ArrayToTuples(self.bottom),color=c3))
+        axes.add_patch(Poly(ArrayToTuples(self.corners),color=c1))
+        axes.add_patch(Poly(ArrayToTuples(self.top),color=c2))
+        axes.add_patch(Poly(ArrayToTuples(self.bottom),color=c3))
 
     '''
     Load Gate from file at the current position.
@@ -173,12 +232,15 @@ class Gate:
         # compute gate height and width
 
         # compute other things like polygon
-        p1,p2,p3,p4 = [x[:2] for x in self.corners]
-        self.box = sympy.Polygon(p1,p2,p3,p4)
-        p1,p2,p3,p4 = [x[:2] for x in self.top]
-        self.top_box = sympy.Polygon(p1,p2,p3,p4)
-        p1,p2,p3,p4 = [x[:2] for x in self.bottom]
-        self.bottom_box = sympy.Polygon(p1,p2,p3,p4)
+        self.box        = Polygon(self.corners)
+        self.top_box    = Polygon(self.top)
+        self.bottom_box = Polygon(self.bottom)
+        # p1,p2,p3,p4 = [x[:2] for x in self.corners]
+        # self.box = sympy.Polygon(p1,p2,p3,p4)
+        # p1,p2,p3,p4 = [x[:2] for x in self.top]
+        # self.top_box = sympy.Polygon(p1,p2,p3,p4)
+        # p1,p2,p3,p4 = [x[:2] for x in self.bottom]
+        # self.bottom_box = sympy.Polygon(p1,p2,p3,p4)
 
 class Surface:
 
@@ -194,7 +256,7 @@ class Surface:
 
     def Draw(self):
         axes = plt.gca()
-        axes.add_patch(Polygon(ArrayToTuples(self.corners),color=self.color))
+        axes.add_patch(Poly(ArrayToTuples(self.corners), color=self.color))
 
     '''
     Load surface from file at the current position
@@ -215,44 +277,118 @@ class Surface:
         else:
             self.color = [207./255, 69./255, 32./255]
 
-        self.poly = sympy.Polygon(*[x[:2] for x in self.corners])
+        self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
 
 """
         Added by Molly 11/28/2018
 """
 class Needle:
 
-    def __init__(self,env_width,env_height):
-        something = 5
-        self.x = 0
-        self.y = 0
-        self.w = 0
-        self.corners = np.zeros((4,2))
+    def __init__(self, env_width, env_height):
+        self.x = 96     # read off from saved demonstrations as start x
+        self.y = env_height - 108    # read off from saved demonstrations as start y
+        self.PI = 3.141592654
+        self.w = self.PI
+        self.corners = None
 
-
+        self.max_dXY      = 75
+        self.length_const = 0.08
+        self.scale        = np.sqrt(env_width**2 + env_height**2)
+        self.is_moving    = False
 
         self.env_width = env_width
         self.env_height = env_height
 
-
-
-        self.needle_color  = [134, 200, 188]
-        self.thread_color  = [167, 188, 214]
+        self.needle_color  = [134./255, 200./255, 188./255]
+        self.thread_color  = [167./255, 188./255, 214./255]
 
         self.thread_points = []
 
+        self.Load()
+
     def Draw(self):
-        pass
-        """ draw needle """
+        self.draw_needle()
+        self.draw_thread()
 
-        """ draw thread """
+    def compute_corners(self):
+        """
+            given x,y,w compute needle corners and save
+        """
+        w = self.w
+        x = self.x
+        y = self.env_height - self.y
 
-    def Load(self, handle):
-        pass
+        top_w = w - self.PI/2
+        bot_w = w + self.PI/2
 
+        length = self.length_const * self.scale
+
+        top_x = x - (0.01 * self.scale) * math.cos(top_w) + (length * math.cos(w))
+        top_y = y - (0.01 * self.scale) * math.sin(top_w) + (length * math.sin(w))
+        bot_x = x - (0.01 * self.scale) * math.cos(bot_w) + (length * math.cos(w))
+        bot_y = y - (0.01 * self.scale) * math.sin(bot_w) + (length * math.sin(w))
+
+        corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
+
+        self.corners = corners
+
+    def draw_needle(self):
+        axes = plt.gca()
+        axes.add_patch(Poly(ArrayToTuples(self.corners),color=self.needle_color))
+
+    def draw_thread(self):
+        if(len(self.thread_points) > 0): # only draw if we have points
+            thread_points = np.array(self.thread_points)
+            plt.plot(thread_points[:,0], self.env_height - thread_points[:, 1], c=self.thread_color)
+
+
+    def Load(self):
+        """
+            Load the current needle position
+        """
+        # compute the corners for the current position
+        self.compute_corners()
+        # save the polygon
+        self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
 
     def Move(self, movement):
-        pass
         """
             Given an input, move the needle. Update the position, orientation, and thread path
+
+            in android game movement is specified by touch points. last_x, last_y specify
+            the x,y in the previous time step and x,y specify the current touch point
+
+            dx = x - last_x
+            dy = y - last_y
+            w  = atan2(dy/dx)
+
+            right now we assume you take in dx and dy (since we can directly pass that)
+
         """
+        dx = movement[0]
+        dy = movement[1]
+        if(abs(dx) > 0 or abs(dy) > 0):
+            dw  = self.w + math.atan(dy/dx)
+        else:
+            dw  = 0
+
+        self.w = self.w + dw
+        self.x = self.x - dx
+        self.y = self.y + dy
+        self.compute_corners()
+        self.thread_points.append([self.x,self.y])
+
+    def get_path_len(self):
+        """
+                Compute the path length using the thread points
+        """
+        path_len = 0
+
+        for i in range(len(self.thread_points) - 1):
+            pt_1 = thread_points[i]
+            pt_2 = thread_points[i+1]
+
+            dX = np.linalg.norm(pt_1 - pt_2)
+            path_len = path_len + dX
+
+        return path_len
