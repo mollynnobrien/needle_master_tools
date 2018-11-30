@@ -35,7 +35,7 @@ class Environment:
         self.surfaces = []
         self.t = 0
         self.needle = None
-        self.game_time = 20
+        self.game_time = 200
 
         if not filename is None:
             print 'Loading environment from "%s"...'%(filename)
@@ -141,6 +141,41 @@ class Environment:
                 intersect = intersect or s_intersect
 
         return intersect
+
+    def gate_score(self):
+        passed_gates = self.compute_passed_gates()
+
+        if(num_gates == 0):
+            gate_score = 1000
+        else:
+            gate_score = 1000 * float(passed_gates)/num_gates
+
+    def time_score(self):
+        if(time_remaining > 5000):
+            time_score = 1000
+        else:
+            time_score = 1000 * float(time_remaining)/5000
+
+    def path_score(self):
+        ''' compute path score '''
+        path_score = -50*path_length
+
+    def damage_score(self):
+        ''' compute damage score '''
+        damage_score = -4*damage
+        # penalize hitting deep tissue
+        if(deep_tissue and deep_hit):
+            damage_score = damage_score - 1000
+
+    def Score(self):
+        """
+            compute the score for the demonstration
+        """
+        gate_score   = self.gate_score()
+        time_score   = self.time_score()
+        path_score   = self.path_score()
+        damage_score = self.damage_score()
+        return gate_score + time_score + path_score + damage_score
 
 class Gate:
 
@@ -365,16 +400,13 @@ class Needle:
             right now we assume you take in dx and dy (since we can directly pass that)
 
         """
-        dx = movement[0]
-        dy = movement[1]
-        if(abs(dx) > 0 or abs(dy) > 0):
-            dw  = self.w + math.atan(dy/dx)
-        else:
-            dw  = 0
+        dX = movement[0]
+        dw = movement[1]
 
         self.w = self.w + dw
-        self.x = self.x - dx
-        self.y = self.y + dy
+        self.x = self.x + dX * math.cos(self.w)
+        self.y = self.y - dX * math.sin(self.w)
+
         self.compute_corners()
         self.thread_points.append([self.x,self.y])
 

@@ -18,6 +18,7 @@ def playback(env_path, demo_path):
     (env,t)     = nm.ParseDemoName(demo_path)
     demo        = nm.Demo(environment.width, environment.height, filename=demo_path)
     actions     = demo.u; actions[:,0] = actions[:, 0]
+    state       = demo.s;
 
     """ ..................................... """
     running = True
@@ -28,9 +29,10 @@ def playback(env_path, demo_path):
         environment.Draw(True)
         running = environment.check_status()
 
-    woah()
-
-
+    print("________________________")
+    print(" Level " + str(env))
+    print(" Score " + str(environment.Score()))
+    print("________________________")
     """ ..................................... """
 
 #-------------------------------------------------------
