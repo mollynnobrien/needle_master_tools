@@ -6,7 +6,7 @@ Created on Thu Oct 08 11:31:19 2015
 """
 
 import numpy as np
-import needle_master as nm
+from file import *
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -28,17 +28,22 @@ class Demo:
 
         if not filename is None:
             handle = file(filename,'r')
-            (env,time) = nm.ParseDemoName(filename)
-            self.Load(handle)
+            (env,time) = self.parse_name(filename)
+            self.load(handle)
             self.env = env
 
-    def Draw(self):
+    @staticmethod
+    def parse_name(filename):
+        toks = filename.split('/')[-1].split('.')[0].split('_')
+        return (int(toks[1]),toks[2])
+
+    def draw(self):
         plt.plot(self.s[:,0],self.s[:,1])
 
     '''
     Load demonstration from a file
     '''
-    def Load(self,handle):
+    def load(self, handle):
 
         t = []
         s = []
