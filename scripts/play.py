@@ -30,7 +30,7 @@ def playback(env_path, demo_path):
 
     print("________________________")
     print(" Level " + str(demo.env))
-    print(" Score " + str(environment.score()))
+    #print(" Score " + str(environment.score()))
     print("________________________")
     """ ..................................... """
 
