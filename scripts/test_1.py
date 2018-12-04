@@ -6,7 +6,7 @@
 
 """
 import os
-import needle_master as nm
+from .context import needlemaster as nm
 import matplotlib.pyplot as plt
 from pdb import set_trace as woah
 
@@ -29,13 +29,13 @@ environment = nm.Environment(env_dir + env_name)
 demos = []
 
 for file in os.listdir(demo_dir):
-    (env,t) = nm.ParseDemoName(file)
+    (env,t) = nm.parse_demo_name(file)
     # only load demos from this environment
     if(env == env_number):
         demo = nm.Demo(env_height=environment.height,env_width=environment.width,filename=demo_dir + file)
         demos.append(demo)
 
-environment.Draw()
+environment.draw()
 plt.gca().invert_xaxis()
 plt.savefig('test_1_output.png')
 plt.show()

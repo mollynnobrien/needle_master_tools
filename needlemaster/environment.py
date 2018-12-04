@@ -15,13 +15,13 @@ from matplotlib.collections import PatchCollection
 
 from pdb import set_trace as woah
 
-def SafeLoadLine(name,handle):
+def safe_load_line(name,handle):
     l = handle.readline()[:-1].split(': ')
     assert(l[0] == name)
 
     return l[1].split(',')
 
-def ArrayToTuples(array):
+def array_to_tuples(array):
     return zip(array[:,0],array[:,1])
 
 class Environment:
@@ -40,66 +40,71 @@ class Environment:
         if not filename is None:
             print 'Loading environment from "%s"...'%(filename)
             handle = open(filename,'r')
-            self.Load(handle)
+            self.load(handle)
             handle.close()
 
             self.needle = Needle(self.width, self.height)
 
-    def Draw(self, save_image=False, gamecolor=True):
+    def draw(self, save_image=False, gamecolor=True):
         axes = plt.gca()
         plt.ylim(self.height)
         plt.xlim(self.width)
         for surface in self.surfaces:
-            surface.Draw()
+            surface.draw()
         for gate in self.gates:
-            gate.Draw()
+            gate.draw()
 
-        self.needle.Draw()
+        self.needle.draw()
 
         if(save_image):
             plt.gca().invert_xaxis()
             plt.savefig(str(self.t) + '.png')
             plt.close('all')
 
-    def InGate(self,demo):
+    def in_gate(self,demo):
         for gate in self.gates:
             print gate.Contains(demo)
         return False
 
+    @staticmethod
+    def parse_name(filename):
+        toks = filename.split('/')[-1].split('.')[0].split('_')
+        return toks[1]
+
     '''
     Load an environment file.
     '''
-    def Load(self,handle):
+    def load(self,handle):
 
-        D = SafeLoadLine('Dimensions',handle)
+        D = safe_load_line('Dimensions',handle)
         self.height = int(D[1])
         self.width = int(D[0])
         print " - width=%d, height=%d"%(self.width, self.height)
 
-        D = SafeLoadLine('Gates',handle)
+        D = safe_load_line('Gates',handle)
         self.ngates = int(D[0])
         print " - num gates=%d"%(self.ngates)
 
         for i in range(self.ngates):
             gate = Gate(self.width,self.height)
-            gate.Load(handle)
+            gate.load(handle)
             self.gates.append(gate)
 
-        D = SafeLoadLine('Surfaces',handle)
+        D = safe_load_line('Surfaces',handle)
         self.nsurfaces = int(D[0])
         print " - num surfaces=%d"%(self.nsurfaces)
 
 
         for i in range(self.nsurfaces):
             s = Surface(self.width,self.height)
-            s.Load(handle)
+            s.load(handle)
             self.surfaces.append(s)
 
     def step(self, action):
         """
             Move one time step forward
         """
-        self.needle.Move(action)
+        self.needle.move(action)
         self.t = self.t + 1
 
     def check_status(self):
@@ -167,7 +172,7 @@ class Environment:
         if(deep_tissue and deep_hit):
             damage_score = damage_score - 1000
 
-    def Score(self):
+    def score(self):
         """
             compute the score for the demonstration
         """
@@ -196,13 +201,13 @@ class Gate:
         self.env_width = env_width
         self.env_height = env_height
 
-    def Contains(self,demo):
+    def contains(self,demo):
         return [self.box.contains(Point(x)) for x in demo.s]#, self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
 
-    def Features(self,demo):
+    def features(self,demo):
         return False
 
-    def Draw(self,gamecolor=True):
+    def draw(self,gamecolor=True):
         c1 = [251./255, 216./255, 114./255];
         c2 = [255./255, 50./255, 12./255];
         c3 = [255./255, 12./255, 150./255 ];
@@ -215,22 +220,22 @@ class Gate:
           ce = [0.66, 0.66, 0.66];
 
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners),color=c1))
-        axes.add_patch(Poly(ArrayToTuples(self.top),color=c2))
-        axes.add_patch(Poly(ArrayToTuples(self.bottom),color=c3))
+        axes.add_patch(Poly(array_to_tuples(self.corners),color=c1))
+        axes.add_patch(Poly(array_to_tuples(self.top),color=c2))
+        axes.add_patch(Poly(array_to_tuples(self.bottom),color=c3))
 
     '''
     Load Gate from file at the current position.
     '''
-    def Load(self,handle):
+    def load(self,handle):
 
-        pos = SafeLoadLine('GatePos',handle)
-        cornersx = SafeLoadLine('GateX',handle)
-        cornersy = SafeLoadLine('GateY',handle)
-        topx = SafeLoadLine('TopX',handle)
-        topy = SafeLoadLine('TopY',handle)
-        bottomx = SafeLoadLine('BottomX',handle)
-        bottomy = SafeLoadLine('BottomY',handle)
+        pos = safe_load_line('GatePos',handle)
+        cornersx = safe_load_line('GateX',handle)
+        cornersy = safe_load_line('GateY',handle)
+        topx = safe_load_line('TopX',handle)
+        topy = safe_load_line('TopY',handle)
+        bottomx = safe_load_line('BottomX',handle)
+        bottomy = safe_load_line('BottomY',handle)
 
         self.x = self.env_width*float(pos[0])
         self.y = self.env_height*float(pos[1])
@@ -289,18 +294,18 @@ class Surface:
 
         self.poly = None
 
-    def Draw(self):
+    def draw(self):
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners), color=self.color))
+        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
 
     '''
     Load surface from file at the current position
     '''
-    def Load(self, handle):
-        isdeep = SafeLoadLine('IsDeepTissue',handle)
+    def load(self, handle):
+        isdeep = safe_load_line('IsDeepTissue',handle)
 
-        sx = [float(x) for x in SafeLoadLine('SurfaceX',handle)]
-        sy = [float(x) for x in SafeLoadLine('SurfaceY',handle)]
+        sx = [float(x) for x in safe_load_line('SurfaceX',handle)]
+        sy = [float(x) for x in safe_load_line('SurfaceY',handle)]
         self.corners = np.array([sx,sy]).transpose()
         self.corners[:,1] = self.env_height - self.corners[:,1]
 
@@ -339,9 +344,9 @@ class Needle:
 
         self.thread_points = []
 
-        self.Load()
+        self.load()
 
-    def Draw(self):
+    def draw(self):
         self.draw_needle()
         self.draw_thread()
 
@@ -369,7 +374,7 @@ class Needle:
 
     def draw_needle(self):
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners),color=self.needle_color))
+        axes.add_patch(Poly(array_to_tuples(self.corners),color=self.needle_color))
 
     def draw_thread(self):
         if(len(self.thread_points) > 0): # only draw if we have points
@@ -377,7 +382,7 @@ class Needle:
             plt.plot(thread_points[:,0], self.env_height - thread_points[:, 1], c=self.thread_color)
 
 
-    def Load(self):
+    def load(self):
         """
             Load the current needle position
         """
@@ -386,7 +391,7 @@ class Needle:
         # save the polygon
         self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
 
-    def Move(self, movement):
+    def move(self, movement):
         """
             Given an input, move the needle. Update the position, orientation, and thread path
 
