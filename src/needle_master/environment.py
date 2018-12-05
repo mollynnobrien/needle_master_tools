@@ -100,7 +100,21 @@ class Environment:
             Move one time step forward
         """
         self.needle.Move(action)
+        self.Update_Damage()
         self.t = self.t + 1
+
+    def Update_Damage(self):
+        for s in self.Surfaces:
+            if needle in surface:
+                if(abs(self.w) > 0.01):
+                    self.damage = self.damage + (abs(self.w) - 0.01)*100
+                elif
+        pt_hit = [self.poly.contains(pt) for pt in thread_points]
+        self.hit = np.sum(pt_hit) > 0
+
+
+
+            # self.damage =
 
     def check_status(self):
         """
@@ -121,12 +135,18 @@ class Environment:
         valid_deep = not self.deep_tissue_intersect()
         if(not valid_deep):
             print("Punctured deep tissue")
+
+        # check if you have caused too much tissue damage
+        valid_damage = self.damage < 100
+        if(not valid_damage):
+            print("Caused too much tissue damage")
+
         # are you out of time?
         valid_t = self.t < self.game_time
         if(not valid_t):
             print("Ran out of game time")
 
-        return valid_pos and valid_deep and valid_t
+        return valid_pos and valid_deep and valid_damage and valid_t
 
     def deep_tissue_intersect(self):
         """
@@ -173,6 +193,21 @@ class Environment:
         path_length = self.get_path_len()
         path_score = -50*path_length
         return path_score
+
+    def get_path_len(self):
+        """
+                Compute the path length using the thread points
+        """
+        path_len = 0
+
+        for i in range(len(self.thread_points) - 1):
+            pt_1 = thread_points[i]
+            pt_2 = thread_points[i+1]
+
+            dX = np.linalg.norm(pt_1 - pt_2)
+            path_len = path_len + dX
+
+        return path_len
 
     def damage_score(self):
         ''' compute damage score '''
@@ -332,16 +367,8 @@ class Surface:
 
         self.poly = Polygon(self.corners)
 
-    def compute_damage(self, thread_points):
-        pt_hit = [self.poly.contains(pt) for pt in thread_points]
-        self.hit = np.sum(pt_hit) > 0
 
-
-
-        # self.damage =
-
-    def update_color(self):
-        damage = self.damage
+    def update_color(self, damage):
         if(damage > 100):
             damage = 100
 
@@ -447,18 +474,3 @@ class Needle:
 
         self.compute_corners()
         self.thread_points.append([self.x,self.y])
-
-    def get_path_len(self):
-        """
-                Compute the path length using the thread points
-        """
-        path_len = 0
-
-        for i in range(len(self.thread_points) - 1):
-            pt_1 = thread_points[i]
-            pt_2 = thread_points[i+1]
-
-            dX = np.linalg.norm(pt_1 - pt_2)
-            path_len = path_len + dX
-
-        return path_len
