@@ -76,7 +76,7 @@ class Environment:
     '''
     Load an environment file.
     '''
-    def load(self,handle):
+    def load(self, handle):
 
         D = safe_load_line('Dimensions',handle)
         self.height = int(D[1])
@@ -166,6 +166,14 @@ class Environment:
                 intersect = intersect or s_intersect
 
         return intersect
+
+    def compute_passed_gates(self):
+        passed_gates = 0
+        # see if thread_points goes through the gate at any points
+        for gate in self.gates:
+            pass_gate    = np.sum(gate.Contains(self.thread_points)) > 0
+            passed_gates = passed_gates + pass_gate
+        return passed_gates
 
     def gate_score(self):
         passed_gates = self.compute_passed_gates()
@@ -357,7 +365,7 @@ class Surface:
         else:
             self.color = [207./255, 69./255, 32./255]
 
-        self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
+        self.poly = Polygon(self.corners)
 
     def update_color(self, damage):
         if(damage > 100):
@@ -424,7 +432,7 @@ class Needle:
 
     def draw_needle(self):
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners),color=self.needle_color))
+        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.needle_color))
 
     def draw_thread(self):
         if(len(self.thread_points) > 0): # only draw if we have points
