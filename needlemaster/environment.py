@@ -28,13 +28,15 @@ class Environment:
 
     def __init__(self,filename=None):
 
-        self.height = 0
-        self.width = 0
-        self.ngates = 0
-        self.gates = []
+        self.height   = 0
+        self.width    = 0
+        self.ngates   = 0
+        self.gates    = []
         self.surfaces = []
-        self.t = 0
-        self.needle = None
+        self.t        = 0
+        self.damage   = 0
+        self.needle   = None
+        ''' TODO: how do we want to constrain the game time? '''
         self.game_time = 200
 
         if not filename is None:
@@ -105,7 +107,19 @@ class Environment:
             Move one time step forward
         """
         self.needle.move(action)
+        self.update_damage()
         self.t = self.t + 1
+
+    def update_damage(self):
+        for s in self.Surfaces:
+            environment_damage = 0
+            if needle in surface:
+                if(abs(self.w) > 0.01):
+                    s.damage = s.damage + (abs(self.w) - 0.01)*100
+
+                s.update_color()
+                environment_damage = environment_damage + s.damage
+        self.damage = environment_damage
 
     def check_status(self):
         """
@@ -126,6 +140,12 @@ class Environment:
         valid_deep = not self.deep_tissue_intersect()
         if(not valid_deep):
             print("Punctured deep tissue")
+
+        # check if you have caused too much tissue damage
+        valid_damage = self.damage < 100
+        if(not valid_damage):
+            print("Caused too much tissue damage")
+
         # are you out of time?
         valid_t = self.t < self.game_time
         if(not valid_t):
@@ -156,21 +176,43 @@ class Environment:
             gate_score = 1000 * float(passed_gates)/num_gates
 
     def time_score(self):
+        ''' TODO this doesn't make sense right now because we are
+            measuring time stamps not milliseconds, we should change
+            the threshold '''
+        time_remaining = self.game_time - self.t
         if(time_remaining > 5000):
             time_score = 1000
         else:
             time_score = 1000 * float(time_remaining)/5000
+        return time_score
 
     def path_score(self):
-        ''' compute path score '''
+        path_length = self.get_path_len()
         path_score = -50*path_length
+        return path_score
+
+    def get_path_len(self):
+        """
+                Compute the path length using the thread points
+        """
+        path_len = 0
+        for i in range(len(self.thread_points) - 1):
+            pt_1 = thread_points[i]
+            pt_2 = thread_points[i+1]
+
+            dX = np.linalg.norm(pt_1 - pt_2)
+            path_len = path_len + dX
+
+        return path_len
 
     def damage_score(self):
-        ''' compute damage score '''
+        damage = self.damage
+        if(self.deep_tissue_intersect):
+            damage = damage - 1000
+
         damage_score = -4*damage
-        # penalize hitting deep tissue
-        if(deep_tissue and deep_hit):
-            damage_score = damage_score - 1000
+
+        return damage_score
 
     def score(self):
         """
@@ -275,12 +317,7 @@ class Gate:
         self.box        = Polygon(self.corners)
         self.top_box    = Polygon(self.top)
         self.bottom_box = Polygon(self.bottom)
-        # p1,p2,p3,p4 = [x[:2] for x in self.corners]
-        # self.box = sympy.Polygon(p1,p2,p3,p4)
-        # p1,p2,p3,p4 = [x[:2] for x in self.top]
-        # self.top_box = sympy.Polygon(p1,p2,p3,p4)
-        # p1,p2,p3,p4 = [x[:2] for x in self.bottom]
-        # self.bottom_box = sympy.Polygon(p1,p2,p3,p4)
+
 
 class Surface:
 
@@ -288,6 +325,7 @@ class Surface:
         self.deep = False
         self.corners = None
         self.color = [0.,0.,0.]
+        self.damage = 0
 
         self.env_width = env_width
         self.env_height = env_height
@@ -295,9 +333,11 @@ class Surface:
         self.poly = None
 
     def draw(self):
+        ''' update damage and surface color '''
+        self.compute_damage()
+        self.update_color() # based on the amount of damage
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
-
+        axes.add_patch(Poly(ArrayToTuples(self.corners), color=self.color))
     '''
     Load surface from file at the current position
     '''
@@ -318,6 +358,16 @@ class Surface:
             self.color = [207./255, 69./255, 32./255]
 
         self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
+
+    def update_color(self, damage):
+        if(damage > 100):
+            damage = 100
+
+        r = 232 + ((207.0 - 232.0) * damage / 100.0)
+        g = 146 + ((69.0 - 146.0) * damage / 100.0)
+        b = 142 + ((32.0 - 142.0) * damage / 100.0)
+
+        self.color = (255/255.0, r/255.0, g/255.0, b/255.0)
 
 """
         Added by Molly 11/28/2018
@@ -414,18 +464,3 @@ class Needle:
 
         self.compute_corners()
         self.thread_points.append([self.x,self.y])
-
-    def get_path_len(self):
-        """
-                Compute the path length using the thread points
-        """
-        path_len = 0
-
-        for i in range(len(self.thread_points) - 1):
-            pt_1 = thread_points[i]
-            pt_2 = thread_points[i+1]
-
-            dX = np.linalg.norm(pt_1 - pt_2)
-            path_len = path_len + dX
-
-        return path_len

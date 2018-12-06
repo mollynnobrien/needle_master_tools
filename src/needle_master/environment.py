@@ -62,11 +62,22 @@ class Environment:
             plt.gca().invert_xaxis()
             plt.savefig(str(self.t) + '.png')
             plt.close('all')
+            print("saved image")
 
     def InGate(self,demo):
         for gate in self.gates:
             print gate.Contains(demo)
         return False
+
+    def Score(self):
+        """
+            compute the score for the demonstration
+        """
+        gate_score   = self.gate_score()
+        time_score   = self.time_score()
+        path_score   = self.path_score()
+        damage_score = self.damage_score()
+        return gate_score + time_score + path_score + damage_score
 
     '''
     Load an environment file.
@@ -218,15 +229,7 @@ class Environment:
 
         return damage_score
 
-    def Score(self):
-        """
-            compute the score for the demonstration
-        """
-        gate_score   = self.gate_score()
-        time_score   = self.time_score()
-        path_score   = self.path_score()
-        damage_score = self.damage_score()
-        return gate_score + time_score + path_score + damage_score
+
 
 class Gate:
 

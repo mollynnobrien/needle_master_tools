@@ -28,13 +28,15 @@ class Environment:
 
     def __init__(self,filename=None):
 
-        self.height = 0
-        self.width = 0
-        self.ngates = 0
-        self.gates = []
+        self.height   = 0
+        self.width    = 0
+        self.ngates   = 0
+        self.gates    = []
         self.surfaces = []
-        self.t = 0
-        self.needle = None
+        self.t        = 0
+        self.damage   = 0
+        self.needle   = None
+        ''' TODO: how do we want to constrain the game time? '''
         self.game_time = 200
 
         if not filename is None:
@@ -60,6 +62,7 @@ class Environment:
             plt.gca().invert_xaxis()
             plt.savefig(str(self.t) + '.png')
             plt.close('all')
+            print('saved image')
 
     def in_gate(self,demo):
         for gate in self.gates:
