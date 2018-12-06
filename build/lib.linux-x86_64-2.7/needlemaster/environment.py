@@ -15,107 +15,97 @@ from matplotlib.collections import PatchCollection
 
 from pdb import set_trace as woah
 
-def SafeLoadLine(name,handle):
+def safe_load_line(name,handle):
     l = handle.readline()[:-1].split(': ')
     assert(l[0] == name)
 
     return l[1].split(',')
 
-def ArrayToTuples(array):
+def array_to_tuples(array):
     return zip(array[:,0],array[:,1])
 
 class Environment:
 
     def __init__(self,filename=None):
 
-        self.height   = 0
-        self.width    = 0
-        self.ngates   = 0
-        self.gates    = []
+        self.height = 0
+        self.width = 0
+        self.ngates = 0
+        self.gates = []
         self.surfaces = []
-        self.t        = 0
-        self.damage   = 0
-        self.needle   = None
-        ''' TODO: how do we want to constrain the game time? '''
+        self.t = 0
+        self.needle = None
         self.game_time = 200
 
         if not filename is None:
             print 'Loading environment from "%s"...'%(filename)
             handle = open(filename,'r')
-            self.Load(handle)
+            self.load(handle)
             handle.close()
 
             self.needle = Needle(self.width, self.height)
 
-    def Draw(self, save_image=False, gamecolor=True):
+    def draw(self, save_image=False, gamecolor=True):
         axes = plt.gca()
         plt.ylim(self.height)
         plt.xlim(self.width)
         for surface in self.surfaces:
-            surface.Draw()
+            surface.draw()
         for gate in self.gates:
-            gate.Draw()
+            gate.draw()
 
-        self.needle.Draw()
+        self.needle.draw()
 
         if(save_image):
             plt.gca().invert_xaxis()
             plt.savefig(str(self.t) + '.png')
             plt.close('all')
 
-    def InGate(self,demo):
+    def in_gate(self,demo):
         for gate in self.gates:
             print gate.Contains(demo)
         return False
 
+    @staticmethod
+    def parse_name(filename):
+        toks = filename.split('/')[-1].split('.')[0].split('_')
+        return toks[1]
+
     '''
     Load an environment file.
     '''
-    def Load(self,handle):
+    def load(self,handle):
 
-        D = SafeLoadLine('Dimensions',handle)
+        D = safe_load_line('Dimensions',handle)
         self.height = int(D[1])
         self.width = int(D[0])
         print " - width=%d, height=%d"%(self.width, self.height)
 
-        D = SafeLoadLine('Gates',handle)
+        D = safe_load_line('Gates',handle)
         self.ngates = int(D[0])
         print " - num gates=%d"%(self.ngates)
 
         for i in range(self.ngates):
             gate = Gate(self.width,self.height)
-            gate.Load(handle)
+            gate.load(handle)
             self.gates.append(gate)
 
-        D = SafeLoadLine('Surfaces',handle)
+        D = safe_load_line('Surfaces',handle)
         self.nsurfaces = int(D[0])
         print " - num surfaces=%d"%(self.nsurfaces)
 
 
         for i in range(self.nsurfaces):
             s = Surface(self.width,self.height)
-            s.Load(handle)
+            s.load(handle)
             self.surfaces.append(s)
 
     def step(self, action):
         """
             Move one time step forward
         """
-        self.needle.Move(action)
-        self.update_damage()
+        self.needle.move(action)
         self.t = self.t + 1
-
-    def update_damage(self):
-        for s in self.Surfaces:
-            environment_damage = 0
-            if needle in surface:
-                if(abs(self.w) > 0.01):
-                    s.damage = s.damage + (abs(self.w) - 0.01)*100
-
-                s.update_color()
-                environment_damage = environment_damage + s.damage
-        self.damage = environment_damage
-
 
     def check_status(self):
         """
@@ -136,18 +126,12 @@ class Environment:
         valid_deep = not self.deep_tissue_intersect()
         if(not valid_deep):
             print("Punctured deep tissue")
-
-        # check if you have caused too much tissue damage
-        valid_damage = self.damage < 100
-        if(not valid_damage):
-            print("Caused too much tissue damage")
-
         # are you out of time?
         valid_t = self.t < self.game_time
         if(not valid_t):
             print("Ran out of game time")
 
-        return valid_pos and valid_deep and valid_damage and valid_t
+        return valid_pos and valid_deep and valid_t
 
     def deep_tissue_intersect(self):
         """
@@ -160,15 +144,8 @@ class Environment:
             if(s.deep): # we only care about intersecting deep tissue
                 s_intersect = self.needle.poly.intersection(s.poly).area > 0
                 intersect = intersect or s_intersect
-        return intersect
 
-    def compute_passed_gates(self):
-        passed_gates = 0
-        # see if thread_points goes through the gate at any points
-        for gate in self.gates:
-            pass_gate    = np.sum(gate.Contains(self.thread_points)) > 0
-            passed_gates = passed_gates + pass_gate
-        return passed_gates
+        return intersect
 
     def gate_score(self):
         passed_gates = self.compute_passed_gates()
@@ -177,48 +154,25 @@ class Environment:
             gate_score = 1000
         else:
             gate_score = 1000 * float(passed_gates)/num_gates
-        return gate_score
 
     def time_score(self):
-        ''' TODO this doesn't make sense right now because we are
-            measuring time stamps not milliseconds, we should change
-            the threshold '''
-        time_remaining = self.game_time - self.t
         if(time_remaining > 5000):
             time_score = 1000
         else:
             time_score = 1000 * float(time_remaining)/5000
-        return time_score
 
     def path_score(self):
-        path_length = self.get_path_len()
+        ''' compute path score '''
         path_score = -50*path_length
-        return path_score
-
-    def get_path_len(self):
-        """
-                Compute the path length using the thread points
-        """
-        path_len = 0
-        for i in range(len(self.thread_points) - 1):
-            pt_1 = thread_points[i]
-            pt_2 = thread_points[i+1]
-
-            dX = np.linalg.norm(pt_1 - pt_2)
-            path_len = path_len + dX
-
-        return path_len
 
     def damage_score(self):
-        damage = self.damage
-        if(self.deep_tissue_intersect):
-            damage = damage - 1000
-
+        ''' compute damage score '''
         damage_score = -4*damage
+        # penalize hitting deep tissue
+        if(deep_tissue and deep_hit):
+            damage_score = damage_score - 1000
 
-        return damage_score
-
-    def Score(self):
+    def score(self):
         """
             compute the score for the demonstration
         """
@@ -247,13 +201,13 @@ class Gate:
         self.env_width = env_width
         self.env_height = env_height
 
-    def Contains(self,demo):
+    def contains(self,demo):
         return [self.box.contains(Point(x)) for x in demo.s]#, self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
 
-    def Features(self,demo):
+    def features(self,demo):
         return False
 
-    def Draw(self,gamecolor=True):
+    def draw(self,gamecolor=True):
         c1 = [251./255, 216./255, 114./255];
         c2 = [255./255, 50./255, 12./255];
         c3 = [255./255, 12./255, 150./255 ];
@@ -266,22 +220,22 @@ class Gate:
           ce = [0.66, 0.66, 0.66];
 
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners),color=c1))
-        axes.add_patch(Poly(ArrayToTuples(self.top),color=c2))
-        axes.add_patch(Poly(ArrayToTuples(self.bottom),color=c3))
+        axes.add_patch(Poly(array_to_tuples(self.corners),color=c1))
+        axes.add_patch(Poly(array_to_tuples(self.top),color=c2))
+        axes.add_patch(Poly(array_to_tuples(self.bottom),color=c3))
 
     '''
     Load Gate from file at the current position.
     '''
-    def Load(self,handle):
+    def load(self,handle):
 
-        pos = SafeLoadLine('GatePos',handle)
-        cornersx = SafeLoadLine('GateX',handle)
-        cornersy = SafeLoadLine('GateY',handle)
-        topx = SafeLoadLine('TopX',handle)
-        topy = SafeLoadLine('TopY',handle)
-        bottomx = SafeLoadLine('BottomX',handle)
-        bottomy = SafeLoadLine('BottomY',handle)
+        pos = safe_load_line('GatePos',handle)
+        cornersx = safe_load_line('GateX',handle)
+        cornersy = safe_load_line('GateY',handle)
+        topx = safe_load_line('TopX',handle)
+        topy = safe_load_line('TopY',handle)
+        bottomx = safe_load_line('BottomX',handle)
+        bottomy = safe_load_line('BottomY',handle)
 
         self.x = self.env_width*float(pos[0])
         self.y = self.env_height*float(pos[1])
@@ -321,6 +275,12 @@ class Gate:
         self.box        = Polygon(self.corners)
         self.top_box    = Polygon(self.top)
         self.bottom_box = Polygon(self.bottom)
+        # p1,p2,p3,p4 = [x[:2] for x in self.corners]
+        # self.box = sympy.Polygon(p1,p2,p3,p4)
+        # p1,p2,p3,p4 = [x[:2] for x in self.top]
+        # self.top_box = sympy.Polygon(p1,p2,p3,p4)
+        # p1,p2,p3,p4 = [x[:2] for x in self.bottom]
+        # self.bottom_box = sympy.Polygon(p1,p2,p3,p4)
 
 class Surface:
 
@@ -328,28 +288,24 @@ class Surface:
         self.deep = False
         self.corners = None
         self.color = [0.,0.,0.]
-        self.damage = 0
 
         self.env_width = env_width
         self.env_height = env_height
 
         self.poly = None
 
-    def Draw(self):
-        ''' update damage and surface color '''
-        self.compute_damage()
-        self.update_color() # based on the amount of damage
+    def draw(self):
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners), color=self.color))
+        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
 
     '''
     Load surface from file at the current position
     '''
-    def Load(self, handle):
-        isdeep = SafeLoadLine('IsDeepTissue',handle)
+    def load(self, handle):
+        isdeep = safe_load_line('IsDeepTissue',handle)
 
-        sx = [float(x) for x in SafeLoadLine('SurfaceX',handle)]
-        sy = [float(x) for x in SafeLoadLine('SurfaceY',handle)]
+        sx = [float(x) for x in safe_load_line('SurfaceX',handle)]
+        sy = [float(x) for x in safe_load_line('SurfaceY',handle)]
         self.corners = np.array([sx,sy]).transpose()
         self.corners[:,1] = self.env_height - self.corners[:,1]
 
@@ -361,19 +317,7 @@ class Surface:
         else:
             self.color = [207./255, 69./255, 32./255]
 
-        self.poly = Polygon(self.corners)
-
-
-    def update_color(self, damage):
-        if(damage > 100):
-            damage = 100
-
-        r = 232 + ((207.0 - 232.0) * damage / 100.0)
-        g = 146 + ((69.0 - 146.0) * damage / 100.0)
-        b = 142 + ((32.0 - 142.0) * damage / 100.0)
-
-        self.color = (255/255.0, r/255.0, g/255.0, b/255.0)
-
+        self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
 
 """
         Added by Molly 11/28/2018
@@ -400,9 +344,9 @@ class Needle:
 
         self.thread_points = []
 
-        self.Load()
+        self.load()
 
-    def Draw(self):
+    def draw(self):
         self.draw_needle()
         self.draw_thread()
 
@@ -430,7 +374,7 @@ class Needle:
 
     def draw_needle(self):
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners),color=self.needle_color))
+        axes.add_patch(Poly(array_to_tuples(self.corners),color=self.needle_color))
 
     def draw_thread(self):
         if(len(self.thread_points) > 0): # only draw if we have points
@@ -438,7 +382,7 @@ class Needle:
             plt.plot(thread_points[:,0], self.env_height - thread_points[:, 1], c=self.thread_color)
 
 
-    def Load(self):
+    def load(self):
         """
             Load the current needle position
         """
@@ -447,7 +391,7 @@ class Needle:
         # save the polygon
         self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
 
-    def Move(self, movement):
+    def move(self, movement):
         """
             Given an input, move the needle. Update the position, orientation, and thread path
 
@@ -470,3 +414,18 @@ class Needle:
 
         self.compute_corners()
         self.thread_points.append([self.x,self.y])
+
+    def get_path_len(self):
+        """
+                Compute the path length using the thread points
+        """
+        path_len = 0
+
+        for i in range(len(self.thread_points) - 1):
+            pt_1 = thread_points[i]
+            pt_2 = thread_points[i+1]
+
+            dX = np.linalg.norm(pt_1 - pt_2)
+            path_len = path_len + dX
+
+        return path_len
