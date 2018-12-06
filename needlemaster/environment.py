@@ -107,14 +107,14 @@ class Environment:
             Move one time step forward
         """
         self.needle.move(action)
-        self.update_damage()
+        #self.update_damage()
         self.t = self.t + 1
 
     def update_damage(self):
-        for s in self.Surfaces:
+        for s in self.surfaces:
             environment_damage = 0
             if needle in surface:
-                if(abs(self.w) > 0.01):
+                if abs(self.w) > 0.01:
                     s.damage = s.damage + (abs(self.w) - 0.01)*100
 
                 s.update_color()
@@ -171,7 +171,7 @@ class Environment:
         passed_gates = 0
         # see if thread_points goes through the gate at any points
         for gate in self.gates:
-            pass_gate    = np.sum(gate.Contains(self.thread_points)) > 0
+            pass_gate    = np.sum(gate.contains(self.thread_points)) > 0
             passed_gates = passed_gates + pass_gate
         return passed_gates
 
@@ -342,10 +342,10 @@ class Surface:
 
     def draw(self):
         ''' update damage and surface color '''
-        self.compute_damage()
-        self.update_color() # based on the amount of damage
+        #self.compute_damage()
+        #self.update_color() # based on the amount of damage
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners), color=self.color))
+        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
     '''
     Load surface from file at the current position
     '''
