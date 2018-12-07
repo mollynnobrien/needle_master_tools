@@ -24,6 +24,9 @@ def safe_load_line(name,handle):
 def array_to_tuples(array):
     return zip(array[:,0],array[:,1])
 
+def check_intersect(a, b):
+    return a.poly.intersection(b.poly).area > 0.
+
 class Environment:
 
     def __init__(self,filename=None):
@@ -37,7 +40,7 @@ class Environment:
         self.damage   = 0 # environment damage is the sum of the damage to all surfaces in the scene
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
-        self.game_time = 200
+        self.max_time = 200
 
         if not filename is None:
             print 'Loading environment from "%s"...'%(filename)
@@ -51,6 +54,7 @@ class Environment:
         axes = plt.gca()
         plt.ylim(self.height)
         plt.xlim(self.width)
+        plt.axis('off')
         for surface in self.surfaces:
             surface.draw()
         for gate in self.gates:
@@ -63,7 +67,7 @@ class Environment:
             plt.savefig(str(self.t) + '.png')
             plt.close('all')
 
-    def in_gate(self,demo):
+    def in_gate(self, demo):
         for gate in self.gates:
             print gate.contains(demo.s)
         return False
@@ -111,18 +115,10 @@ class Environment:
         self.t = self.t + 1
 
     def update_damage(self):
-<<<<<<< HEAD
-        environment_damage = 0
-        for s in self.surfaces:
-            ''' todo compute if needle intersects tissue'''
-            if self.needle_tissue_intersect(s):
-                if(abs(self.w) > 0.01):
-=======
         for s in self.surfaces:
             environment_damage = 0
             if needle in surface:
                 if abs(self.w) > 0.01:
->>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
                     s.damage = s.damage + (abs(self.w) - 0.01)*100
                     s.update_color()
                 environment_damage = environment_damage + s.damage
@@ -140,22 +136,22 @@ class Environment:
         valid_x = (x >= 0) and (x <= self.width)
         valid_y = (y >= 0) and (y <= self.height)
         valid_pos = valid_x and valid_y
-        if(not valid_pos):
+        if not valid_pos:
             print("Invalid position")
 
         # have you hit deep tissue?
         valid_deep = not self.deep_tissue_intersect()
-        if(not valid_deep):
+        if not valid_deep:
             print("Punctured deep tissue")
 
         # check if you have caused too much tissue damage
         valid_damage = self.damage < 100
-        if(not valid_damage):
+        if not valid_damage:
             print("Caused too much tissue damage")
 
         # are you out of time?
-        valid_t = self.t < self.game_time
-        if(not valid_t):
+        valid_t = self.t < self.max_time
+        if not valid_t:
             print("Ran out of game time")
 
         return valid_pos and valid_deep and valid_t
@@ -165,30 +161,19 @@ class Environment:
             check each surface, does the needle intersect the
             surface? is the surface deep?
         """
-        intersect = False
-
         for s in self.surfaces:
-            if(s.deep): # we only care about intersecting deep tissue
-                s_intersect = self.needle_tissue_intersect(s)
-                intersect = intersect or s_intersect
+            if s.deep and check_intersect(self.needle, s):
+                return True
+        return False
 
-        return intersect
-
-<<<<<<< HEAD
     def needle_tissue_intersect(self, s):
         return self.needle.poly.intersection(s.poly).area > 0
 
-=======
->>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
     def compute_passed_gates(self):
         passed_gates = 0
         # see if thread_points goes through the gate at any points
         for gate in self.gates:
-<<<<<<< HEAD
             pass_gate    = np.sum(gate.contains(self.needle.thread_points)) > 0
-=======
-            pass_gate    = np.sum(gate.contains(self.thread_points)) > 0
->>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
             passed_gates = passed_gates + pass_gate
         return passed_gates
 
@@ -207,13 +192,14 @@ class Environment:
             measuring time stamps not milliseconds, we should change
             the threshold
             --- right now I'm changing it to 1/3 of self.game_time because
-            orig 5000 was 1/3*15000'''
-        time_remaining = self.game_time - self.t
-        T = (1/3.0) * self.game_time
-        if(time_remaining > T):
+            orig 5000 was 1/3*15000
+            '''
+        time_remaining = self.max_time - self.t
+        t = (1/3.0) * self.game_time
+        if time_remaining > t:
             time_score = 1000
         else:
-            time_score = 1000 * float(time_remaining)/T
+            time_score = 1000 * float(time_remaining)/t
         return time_score
 
     def path_score(self):
@@ -276,22 +262,19 @@ class Gate:
         self.env_height = env_height
 
     def contains(self, traj):
-        return [self.box.contains(Point(x)) for x in traj] # changed demo.s to traj
-
-    def features(self,demo):
-        return False
+        return [self.box.contains(Point(x)) for x in traj]
 
     def draw(self,gamecolor=True):
-        c1 = [251./255, 216./255, 114./255];
-        c2 = [255./255, 50./255, 12./255];
-        c3 = [255./255, 12./255, 150./255 ];
-        ce = [0,0,0];
+        c1 = [251./255, 216./255, 114./255]
+        c2 = [255./255, 50./255, 12./255]
+        c3 = [255./255, 12./255, 150./255]
+        ce = [0,0,0]
 
         if not gamecolor:
-          c1 = [0.95, 0.95, 0.95];
-          c2 = [0.75,0.75,0.75];
-          c3 = [0.75,0.75,0.75];
-          ce = [0.66, 0.66, 0.66];
+          c1 = [0.95, 0.95, 0.95]
+          c2 = [0.75,0.75,0.75]
+          c3 = [0.75,0.75,0.75]
+          ce = [0.66, 0.66, 0.66]
 
         axes = plt.gca()
         axes.add_patch(Poly(array_to_tuples(self.corners),color=c1))
@@ -365,12 +348,9 @@ class Surface:
         self.poly = None
 
     def draw(self):
-<<<<<<< HEAD
-=======
         ''' update damage and surface color '''
         #self.compute_damage()
         #self.update_color() # based on the amount of damage
->>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
         axes = plt.gca()
         axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
     '''
@@ -394,11 +374,9 @@ class Surface:
 
         self.poly = Polygon(self.corners)
 
-
-
     def update_color(self):
         damage = self.damage
-        if(self.damage > 100):
+        if(damage > 100):
             damage = 100
 
         r = 232 + ((207.0 - 232.0) * damage / 100.0)
@@ -407,9 +385,6 @@ class Surface:
 
         self.color = (255/255.0, r/255.0, g/255.0, b/255.0)
 
-"""
-        Added by Molly 11/28/2018
-"""
 class Needle:
 
     def __init__(self, env_width, env_height):
@@ -451,24 +426,28 @@ class Needle:
 
         length = self.length_const * self.scale
 
-        top_x = x - (0.01 * self.scale) * math.cos(top_w) + (length * math.cos(w))
-        top_y = y - (0.01 * self.scale) * math.sin(top_w) + (length * math.sin(w))
-        bot_x = x - (0.01 * self.scale) * math.cos(bot_w) + (length * math.cos(w))
-        bot_y = y - (0.01 * self.scale) * math.sin(bot_w) + (length * math.sin(w))
+        top_x = x - (0.01 * self.scale) * math.cos(top_w) + \
+                (length * math.cos(w))
+        top_y = y - (0.01 * self.scale) * math.sin(top_w) + \
+                (length * math.sin(w))
+        bot_x = x - (0.01 * self.scale) * math.cos(bot_w) + \
+                (length * math.cos(w))
+        bot_y = y - (0.01 * self.scale) * math.sin(bot_w) + \
+                (length * math.sin(w))
 
-        corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
-
-        self.corners = corners
+        self.corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
 
     def draw_needle(self):
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.needle_color))
+        axes.add_patch(Poly(array_to_tuples(self.corners),
+            color=self.needle_color))
 
     def draw_thread(self):
-        if(len(self.thread_points) > 0): # only draw if we have points
+        if len(self.thread_points) > 0:
             thread_points = np.array(self.thread_points)
-            plt.plot(thread_points[:,0], self.env_height - thread_points[:, 1], c=self.thread_color)
-
+            plt.plot(thread_points[:,0],
+                    self.env_height - thread_points[:, 1],
+                    c=self.thread_color)
 
     def load(self):
         """
@@ -476,21 +455,21 @@ class Needle:
         """
         # compute the corners for the current position
         self.compute_corners()
-        # save the polygon
-        self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
+        self.poly = Polygon(self.corners)
 
     def move(self, movement):
         """
-            Given an input, move the needle. Update the position, orientation, and thread path
-
-            in android game movement is specified by touch points. last_x, last_y specify
-            the x,y in the previous time step and x,y specify the current touch point
+            Given an input, move the needle. Update the position, orientation,
+            and thread path in android game movement is specified by touch
+            points. last_x, last_y specify the x,y in the previous time step
+            and x,y specify the current touch point
 
             dx = x - last_x
             dy = y - last_y
             w  = atan2(dy/dx)
 
-            right now we assume you take in dx and dy (since we can directly pass that)
+            right now we assume you take in dx and dy
+            (since we can directly pass that)
 
         """
         dX = movement[0]
@@ -501,4 +480,4 @@ class Needle:
         self.y = self.y - dX * math.sin(self.w)
 
         self.compute_corners()
-        self.thread_points.append([self.x,self.y])
+        self.thread_points.append((self.x, self.y))
