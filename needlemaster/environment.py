@@ -166,9 +166,6 @@ class Environment:
                 return True
         return False
 
-    def needle_tissue_intersect(self, s):
-        return self.needle.poly.intersection(s.poly).area > 0
-
     def compute_passed_gates(self):
         passed_gates = 0
         # see if thread_points goes through the gate at any points
@@ -191,11 +188,11 @@ class Environment:
         ''' TODO this doesn't make sense right now because we are
             measuring time stamps not milliseconds, we should change
             the threshold
-            --- right now I'm changing it to 1/3 of self.game_time because
+            --- right now I'm changing it to 1/3 of self.max_time because
             orig 5000 was 1/3*15000
             '''
         time_remaining = self.max_time - self.t
-        t = (1/3.0) * self.game_time
+        t = (1/3.0) * self.max_time
         if time_remaining > t:
             time_score = 1000
         else:
@@ -239,7 +236,6 @@ class Environment:
         time_score   = self.time_score()
         path_score   = self.path_score()
         damage_score = self.damage_score()
-        woah()
         return gate_score + time_score + path_score + damage_score
 
 class Gate:
