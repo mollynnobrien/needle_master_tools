@@ -41,6 +41,10 @@ class Environment:
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
         self.max_time = 200
+        self.background_color = [99/255., 153/255., 174/255.]
+        self.passed_gates = 0
+        ''' TODO keep track of which gate is next '''
+        self.next_gate    = None
 
         if not filename is None:
             print 'Loading environment from "%s"...'%(filename)
@@ -51,10 +55,14 @@ class Environment:
             self.needle = Needle(self.width, self.height)
 
     def draw(self, save_image=False, gamecolor=True):
-        axes = plt.gca()
+        fig = plt.figure()
+        frame = plt.gca()
         plt.ylim(self.height)
         plt.xlim(self.width)
-        plt.axis('off')
+        frame = plt.gca()
+        frame.set_facecolor(self.background_color)
+        frame.axes.get_xaxis().set_ticks([])
+        frame.axes.get_yaxis().set_ticks([])
         for surface in self.surfaces:
             surface.draw()
         for gate in self.gates:
@@ -63,7 +71,7 @@ class Environment:
         self.needle.draw()
 
         if(save_image):
-            plt.gca().invert_xaxis()
+            frame.invert_xaxis()
             plt.savefig(str(self.t) + '.png')
             plt.close('all')
 
@@ -111,7 +119,7 @@ class Environment:
             Move one time step forward
         """
         self.needle.move(action)
-        #self.update_damage()
+        # self.update_damage()
         self.t = self.t + 1
 
     def update_damage(self):
@@ -220,11 +228,11 @@ class Environment:
         return path_len
 
     def damage_score(self):
-        damage = self.damage
+        damage = -4 * self.damage
         if(self.deep_tissue_intersect):
-            damage = damage + 1000 # will become negative on line 227
+            damage = damage - 1000
 
-        damage_score = -4*damage
+        damage_score = damage
 
         return damage_score
 
@@ -250,6 +258,12 @@ class Gate:
         self.width = 0
         self.height = 0
 
+        self.c1 = [251./255, 216./255, 114./255]
+        self.c2 = [255./255, 50./255, 12./255]
+        self.c3 = [255./255, 12./255, 150./255]
+        self.ce = [0,0,0]
+        self.highlight = None
+
         self.box = None
         self.bottom_box = None
         self.top_box = None
@@ -260,22 +274,37 @@ class Gate:
     def contains(self, traj):
         return [self.box.contains(Point(x)) for x in traj]
 
-    def draw(self,gamecolor=True):
-        c1 = [251./255, 216./255, 114./255]
-        c2 = [255./255, 50./255, 12./255]
-        c3 = [255./255, 12./255, 150./255]
-        ce = [0,0,0]
+    def next(self):
+        ''' this gate is next to be hit '''
+        self.highlight = [100/255., 230/255., 100/255.,]
+        # what is highlightOnDeck?
+        # highlightOnDeck = Color.argb(255, 75, 125, 75);
+    def on_deck(self):
+        self.highlight = [75/255., 125/255., 75/255.,]
 
-        if not gamecolor:
-          c1 = [0.95, 0.95, 0.95]
-          c2 = [0.75,0.75,0.75]
-          c3 = [0.75,0.75,0.75]
-          ce = [0.66, 0.66, 0.66]
+    def passed(self):
+        self.c1 = [100/255., 175/255., 100/255.]
+        self.c2 = [100/255., 175/255., 100/255.]
+        self.c3 = [100/255., 175/255., 100/255.]
+
+    def failed(self):
+        self.c1 = [175/255., 100/255., 100/255.,]
+        self.c2 = [175/255., 100/255., 100/255.,]
+        self.c3 = [175/255., 100/255., 100/255.,]
+
+    def draw(self,gamecolor=True):
+        """
+            private static final int closed = Color.argb(255, 251, 216, 114);
+            private static final int onDeck = Color.argb(255, 251, 216, 114);
+            private static final int next = Color.argb(255, 251, 216, 114);
+
+            private static final int warning = Color.argb(255, 255, 50, 12);
+        """
 
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners),color=c1))
-        axes.add_patch(Poly(array_to_tuples(self.top),color=c2))
-        axes.add_patch(Poly(array_to_tuples(self.bottom),color=c3))
+        axes.add_patch(Poly(array_to_tuples(self.corners),color=self.c1))
+        axes.add_patch(Poly(array_to_tuples(self.top),color=self.c2))
+        axes.add_patch(Poly(array_to_tuples(self.bottom),color=self.c3))
 
     '''
     Load Gate from file at the current position.
