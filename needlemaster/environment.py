@@ -120,7 +120,6 @@ class Environment:
             if needle in surface:
                 if abs(self.w) > 0.01:
                     s.damage = s.damage + (abs(self.w) - 0.01)*100
-
                     s.update_color()
                 environment_damage = environment_damage + s.damage
         self.damage = environment_damage
@@ -177,21 +176,23 @@ class Environment:
 
     def gate_score(self):
         passed_gates = self.compute_passed_gates()
+        num_gates = len(self.gates)
 
         if(num_gates == 0):
             gate_score = 1000
         else:
             gate_score = 1000 * float(passed_gates)/num_gates
+        return gate_score
 
     def time_score(self):
         ''' TODO this doesn't make sense right now because we are
             measuring time stamps not milliseconds, we should change
             the threshold
-            --- right now I'm changing it to 1/3 of self.game_time because
+            --- right now I'm changing it to 1/3 of self.max_time because
             orig 5000 was 1/3*15000
             '''
         time_remaining = self.max_time - self.t
-        t = (1/3.0) * self.game_time
+        t = (1/3.0) * self.max_time
         if time_remaining > t:
             time_score = 1000
         else:
