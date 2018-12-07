@@ -25,7 +25,7 @@ def playback(env_path, demo_path):
 
     while(running):
         environment.step(actions[environment.t,0:2])
-        environment.draw(False)
+        environment.draw(True)
         running = environment.check_status()
 
     print("________________________")
