@@ -76,7 +76,7 @@ class Environment:
     '''
     Load an environment file.
     '''
-    def load(self,handle):
+    def load(self, handle):
 
         D = safe_load_line('Dimensions',handle)
         self.height = int(D[1])
@@ -107,15 +107,22 @@ class Environment:
             Move one time step forward
         """
         self.needle.move(action)
-        self.update_damage()
+        #self.update_damage()
         self.t = self.t + 1
 
     def update_damage(self):
+<<<<<<< HEAD
         environment_damage = 0
         for s in self.surfaces:
             ''' todo compute if needle intersects tissue'''
             if self.needle_tissue_intersect(s):
                 if(abs(self.w) > 0.01):
+=======
+        for s in self.surfaces:
+            environment_damage = 0
+            if needle in surface:
+                if abs(self.w) > 0.01:
+>>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
                     s.damage = s.damage + (abs(self.w) - 0.01)*100
                     s.update_color()
                 environment_damage = environment_damage + s.damage
@@ -167,14 +174,21 @@ class Environment:
 
         return intersect
 
+<<<<<<< HEAD
     def needle_tissue_intersect(self, s):
         return self.needle.poly.intersection(s.poly).area > 0
 
+=======
+>>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
     def compute_passed_gates(self):
         passed_gates = 0
         # see if thread_points goes through the gate at any points
         for gate in self.gates:
+<<<<<<< HEAD
             pass_gate    = np.sum(gate.contains(self.needle.thread_points)) > 0
+=======
+            pass_gate    = np.sum(gate.contains(self.thread_points)) > 0
+>>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
             passed_gates = passed_gates + pass_gate
         return passed_gates
 
@@ -351,6 +365,12 @@ class Surface:
         self.poly = None
 
     def draw(self):
+<<<<<<< HEAD
+=======
+        ''' update damage and surface color '''
+        #self.compute_damage()
+        #self.update_color() # based on the amount of damage
+>>>>>>> 19e20f8e213eeee516f5548cae459a5b36b40310
         axes = plt.gca()
         axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
     '''
@@ -372,7 +392,7 @@ class Surface:
         else:
             self.color = [207./255, 69./255, 32./255]
 
-        self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
+        self.poly = Polygon(self.corners)
 
 
 
@@ -442,7 +462,7 @@ class Needle:
 
     def draw_needle(self):
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners),color=self.needle_color))
+        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.needle_color))
 
     def draw_thread(self):
         if(len(self.thread_points) > 0): # only draw if we have points
