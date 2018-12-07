@@ -34,7 +34,7 @@ class Environment:
         self.gates    = []
         self.surfaces = []
         self.t        = 0
-        self.damage   = 0
+        self.damage   = 0 # environment damage is the sum of the damage to all surfaces in the scene
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
         self.game_time = 200
@@ -65,7 +65,7 @@ class Environment:
 
     def in_gate(self,demo):
         for gate in self.gates:
-            print gate.Contains(demo)
+            print gate.contains(demo.s)
         return False
 
     @staticmethod
@@ -111,13 +111,13 @@ class Environment:
         self.t = self.t + 1
 
     def update_damage(self):
-        for s in self.Surfaces:
-            environment_damage = 0
-            if needle in surface:
+        environment_damage = 0
+        for s in self.surfaces:
+            ''' todo compute if needle intersects tissue'''
+            if self.needle_tissue_intersect(s):
                 if(abs(self.w) > 0.01):
                     s.damage = s.damage + (abs(self.w) - 0.01)*100
-
-                s.update_color()
+                    s.update_color()
                 environment_damage = environment_damage + s.damage
         self.damage = environment_damage
 
@@ -162,28 +162,44 @@ class Environment:
 
         for s in self.surfaces:
             if(s.deep): # we only care about intersecting deep tissue
-                s_intersect = self.needle.poly.intersection(s.poly).area > 0
+                s_intersect = self.needle_tissue_intersect(s)
                 intersect = intersect or s_intersect
 
         return intersect
 
+    def needle_tissue_intersect(self, s):
+        return self.needle.poly.intersection(s.poly).area > 0
+
+    def compute_passed_gates(self):
+        passed_gates = 0
+        # see if thread_points goes through the gate at any points
+        for gate in self.gates:
+            pass_gate    = np.sum(gate.contains(self.needle.thread_points)) > 0
+            passed_gates = passed_gates + pass_gate
+        return passed_gates
+
     def gate_score(self):
         passed_gates = self.compute_passed_gates()
+        num_gates = len(self.gates)
 
         if(num_gates == 0):
             gate_score = 1000
         else:
             gate_score = 1000 * float(passed_gates)/num_gates
+        return gate_score
 
     def time_score(self):
         ''' TODO this doesn't make sense right now because we are
             measuring time stamps not milliseconds, we should change
-            the threshold '''
+            the threshold
+            --- right now I'm changing it to 1/3 of self.game_time because
+            orig 5000 was 1/3*15000'''
         time_remaining = self.game_time - self.t
-        if(time_remaining > 5000):
+        T = (1/3.0) * self.game_time
+        if(time_remaining > T):
             time_score = 1000
         else:
-            time_score = 1000 * float(time_remaining)/5000
+            time_score = 1000 * float(time_remaining)/T
         return time_score
 
     def path_score(self):
@@ -196,9 +212,10 @@ class Environment:
                 Compute the path length using the thread points
         """
         path_len = 0
-        for i in range(len(self.thread_points) - 1):
-            pt_1 = thread_points[i]
-            pt_2 = thread_points[i+1]
+        thread_points = np.array(self.needle.thread_points)
+        for i in range(len(thread_points) - 1):
+            pt_1 = thread_points[i, :]
+            pt_2 = thread_points[i+1, :]
 
             dX = np.linalg.norm(pt_1 - pt_2)
             path_len = path_len + dX
@@ -208,7 +225,7 @@ class Environment:
     def damage_score(self):
         damage = self.damage
         if(self.deep_tissue_intersect):
-            damage = damage - 1000
+            damage = damage + 1000 # will become negative on line 227
 
         damage_score = -4*damage
 
@@ -222,6 +239,7 @@ class Environment:
         time_score   = self.time_score()
         path_score   = self.path_score()
         damage_score = self.damage_score()
+        woah()
         return gate_score + time_score + path_score + damage_score
 
 class Gate:
@@ -243,8 +261,8 @@ class Gate:
         self.env_width = env_width
         self.env_height = env_height
 
-    def contains(self,demo):
-        return [self.box.contains(Point(x)) for x in demo.s]#, self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
+    def contains(self, traj):
+        return [self.box.contains(Point(x)) for x in traj] # changed demo.s to traj
 
     def features(self,demo):
         return False
@@ -325,7 +343,7 @@ class Surface:
         self.deep = False
         self.corners = None
         self.color = [0.,0.,0.]
-        self.damage = 0
+        self.damage = 0 # the damage to this surface
 
         self.env_width = env_width
         self.env_height = env_height
@@ -333,11 +351,8 @@ class Surface:
         self.poly = None
 
     def draw(self):
-        ''' update damage and surface color '''
-        self.compute_damage()
-        self.update_color() # based on the amount of damage
         axes = plt.gca()
-        axes.add_patch(Poly(ArrayToTuples(self.corners), color=self.color))
+        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
     '''
     Load surface from file at the current position
     '''
@@ -359,8 +374,11 @@ class Surface:
 
         self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
 
-    def update_color(self, damage):
-        if(damage > 100):
+
+
+    def update_color(self):
+        damage = self.damage
+        if(self.damage > 100):
             damage = 100
 
         r = 232 + ((207.0 - 232.0) * damage / 100.0)

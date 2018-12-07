@@ -25,12 +25,12 @@ def playback(env_path, demo_path):
 
     while(running):
         environment.step(actions[environment.t,0:2])
-        environment.draw(True)
+        environment.draw(False)
         running = environment.check_status()
 
     print("________________________")
     print(" Level " + str(demo.env))
-    print(" Score " + str(environment.Score()))
+    print(" Score " + str(environment.score()))
     print("________________________")
     """ ..................................... """
 
