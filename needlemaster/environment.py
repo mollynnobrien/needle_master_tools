@@ -51,6 +51,7 @@ class Environment:
         axes = plt.gca()
         plt.ylim(self.height)
         plt.xlim(self.width)
+        plt.axis('off')
         for surface in self.surfaces:
             surface.draw()
         for gate in self.gates:
@@ -258,16 +259,16 @@ class Gate:
         return False
 
     def draw(self,gamecolor=True):
-        c1 = [251./255, 216./255, 114./255];
-        c2 = [255./255, 50./255, 12./255];
-        c3 = [255./255, 12./255, 150./255 ];
-        ce = [0,0,0];
+        c1 = [251./255, 216./255, 114./255]
+        c2 = [255./255, 50./255, 12./255]
+        c3 = [255./255, 12./255, 150./255 ]
+        ce = [0,0,0]
 
         if not gamecolor:
-          c1 = [0.95, 0.95, 0.95];
-          c2 = [0.75,0.75,0.75];
-          c3 = [0.75,0.75,0.75];
-          ce = [0.66, 0.66, 0.66];
+          c1 = [0.95, 0.95, 0.95]
+          c2 = [0.75,0.75,0.75]
+          c3 = [0.75,0.75,0.75]
+          ce = [0.66, 0.66, 0.66]
 
         axes = plt.gca()
         axes.add_patch(Poly(array_to_tuples(self.corners),color=c1))
