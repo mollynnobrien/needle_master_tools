@@ -24,6 +24,9 @@ def safe_load_line(name,handle):
 def array_to_tuples(array):
     return zip(array[:,0],array[:,1])
 
+def check_intersect(a, b):
+    return a.poly.intersection(b.poly).area > 0.
+
 class Environment:
 
     def __init__(self,filename=None):
@@ -37,7 +40,7 @@ class Environment:
         self.damage   = 0
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
-        self.game_time = 200
+        self.max_time = 200
 
         if not filename is None:
             print 'Loading environment from "%s"...'%(filename)
@@ -134,22 +137,22 @@ class Environment:
         valid_x = (x >= 0) and (x <= self.width)
         valid_y = (y >= 0) and (y <= self.height)
         valid_pos = valid_x and valid_y
-        if(not valid_pos):
+        if not valid_pos:
             print("Invalid position")
 
         # have you hit deep tissue?
         valid_deep = not self.deep_tissue_intersect()
-        if(not valid_deep):
+        if not valid_deep:
             print("Punctured deep tissue")
 
         # check if you have caused too much tissue damage
         valid_damage = self.damage < 100
-        if(not valid_damage):
+        if not valid_damage:
             print("Caused too much tissue damage")
 
         # are you out of time?
-        valid_t = self.t < self.game_time
-        if(not valid_t):
+        valid_t = self.t < self.max_time
+        if not valid_t:
             print("Ran out of game time")
 
         return valid_pos and valid_deep and valid_t
@@ -159,14 +162,10 @@ class Environment:
             check each surface, does the needle intersect the
             surface? is the surface deep?
         """
-        intersect = False
-
         for s in self.surfaces:
-            if(s.deep): # we only care about intersecting deep tissue
-                s_intersect = self.needle.poly.intersection(s.poly).area > 0
-                intersect = intersect or s_intersect
-
-        return intersect
+            if s.deep and check_intersect(self.needle, s):
+                return True
+        return False
 
     def compute_passed_gates(self):
         passed_gates = 0
@@ -188,8 +187,8 @@ class Environment:
         ''' TODO this doesn't make sense right now because we are
             measuring time stamps not milliseconds, we should change
             the threshold '''
-        time_remaining = self.game_time - self.t
-        if(time_remaining > 5000):
+        time_remaining = self.max_time - self.t
+        if time_remaining > 5000:
             time_score = 1000
         else:
             time_score = 1000 * float(time_remaining)/5000
@@ -254,9 +253,6 @@ class Gate:
 
     def contains(self,demo):
         return [self.box.contains(Point(x)) for x in demo.s]#, self.box.distance(sympy.Point(x[:2]))] for x in demo.s]
-
-    def features(self,demo):
-        return False
 
     def draw(self,gamecolor=True):
         c1 = [251./255, 216./255, 114./255]
@@ -378,9 +374,6 @@ class Surface:
 
         self.color = (255/255.0, r/255.0, g/255.0, b/255.0)
 
-"""
-        Added by Molly 11/28/2018
-"""
 class Needle:
 
     def __init__(self, env_width, env_height):
@@ -422,24 +415,28 @@ class Needle:
 
         length = self.length_const * self.scale
 
-        top_x = x - (0.01 * self.scale) * math.cos(top_w) + (length * math.cos(w))
-        top_y = y - (0.01 * self.scale) * math.sin(top_w) + (length * math.sin(w))
-        bot_x = x - (0.01 * self.scale) * math.cos(bot_w) + (length * math.cos(w))
-        bot_y = y - (0.01 * self.scale) * math.sin(bot_w) + (length * math.sin(w))
+        top_x = x - (0.01 * self.scale) * math.cos(top_w) + \
+                (length * math.cos(w))
+        top_y = y - (0.01 * self.scale) * math.sin(top_w) + \
+                (length * math.sin(w))
+        bot_x = x - (0.01 * self.scale) * math.cos(bot_w) + \
+                (length * math.cos(w))
+        bot_y = y - (0.01 * self.scale) * math.sin(bot_w) + \
+                (length * math.sin(w))
 
-        corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
-
-        self.corners = corners
+        self.corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
 
     def draw_needle(self):
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.needle_color))
+        axes.add_patch(Poly(array_to_tuples(self.corners),
+            color=self.needle_color))
 
     def draw_thread(self):
-        if(len(self.thread_points) > 0): # only draw if we have points
+        if len(self.thread_points) > 0:
             thread_points = np.array(self.thread_points)
-            plt.plot(thread_points[:,0], self.env_height - thread_points[:, 1], c=self.thread_color)
-
+            plt.plot(thread_points[:,0],
+                    self.env_height - thread_points[:, 1],
+                    c=self.thread_color)
 
     def load(self):
         """
@@ -447,21 +444,21 @@ class Needle:
         """
         # compute the corners for the current position
         self.compute_corners()
-        # save the polygon
-        self.poly = Polygon(self.corners)#sympy.Polygon(*[x[:2] for x in self.corners])
+        self.poly = Polygon(self.corners)
 
     def move(self, movement):
         """
-            Given an input, move the needle. Update the position, orientation, and thread path
-
-            in android game movement is specified by touch points. last_x, last_y specify
-            the x,y in the previous time step and x,y specify the current touch point
+            Given an input, move the needle. Update the position, orientation,
+            and thread path in android game movement is specified by touch
+            points. last_x, last_y specify the x,y in the previous time step
+            and x,y specify the current touch point
 
             dx = x - last_x
             dy = y - last_y
             w  = atan2(dy/dx)
 
-            right now we assume you take in dx and dy (since we can directly pass that)
+            right now we assume you take in dx and dy
+            (since we can directly pass that)
 
         """
         dX = movement[0]
@@ -472,4 +469,4 @@ class Needle:
         self.y = self.y - dX * math.sin(self.w)
 
         self.compute_corners()
-        self.thread_points.append([self.x,self.y])
+        self.thread_points.append((self.x, self.y))
