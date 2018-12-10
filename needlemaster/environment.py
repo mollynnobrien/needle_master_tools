@@ -37,7 +37,8 @@ class Environment:
         self.gates    = []
         self.surfaces = []
         self.t        = 0
-        self.damage   = 0 # environment damage is the sum of the damage to all surfaces in the scene
+        # environment damage is the sum of the damage to all surfaces
+        self.damage   = 0 
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
         self.max_time = 200
@@ -119,18 +120,15 @@ class Environment:
             Move one time step forward
         """
         self.needle.move(action)
-        # self.update_damage()
+        self.update_damage(action)
         self.t = self.t + 1
 
-    def update_damage(self):
-        for s in self.surfaces:
-            environment_damage = 0
-            if needle in surface:
-                if abs(self.w) > 0.01:
-                    s.damage = s.damage + (abs(self.w) - 0.01)*100
-                    s.update_color()
-                environment_damage = environment_damage + s.damage
-        self.damage = environment_damage
+    def update_damage(self, movement):
+        self.damage = 0
+        for surface in self.surfaces:
+            if check_intersect(self.needle, surface):
+                surface.calc_damage(movement)
+            self.damage += surface.damage
 
     def check_status(self):
         """
@@ -399,14 +397,18 @@ class Surface:
 
         self.poly = Polygon(self.corners)
 
-    def update_color(self):
-        damage = self.damage
-        if(damage > 100):
-            damage = 100
+    def calc_damage(self, movement):
+        dw = movement[1]
+        if abs(dw) > 0.01:
+            self.damage += (abs(dw) - 0.01) * 100
+            self.update_color()
+        if self.damage > 100:
+            self.damage = 100
 
-        r = 232 + ((207.0 - 232.0) * damage / 100.0)
-        g = 146 + ((69.0 - 146.0) * damage / 100.0)
-        b = 142 + ((32.0 - 142.0) * damage / 100.0)
+    def update_color(self):
+        r = 232 + ((207.0 - 232.0) * self.damage / 100.0)
+        g = 146 + ((69.0 - 146.0) * self.damage / 100.0)
+        b = 142 + ((32.0 - 142.0) * self.damage / 100.0)
 
         self.color = (255/255.0, r/255.0, g/255.0, b/255.0)
 
