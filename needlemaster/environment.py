@@ -401,9 +401,9 @@ class Surface:
         dw = movement[1]
         if abs(dw) > 0.01:
             self.damage += (abs(dw) - 0.01) * 100
+            if self.damage > 100:
+                self.damage = 100
             self.update_color()
-        if self.damage > 100:
-            self.damage = 100
 
     def update_color(self):
         r = 232 + ((207.0 - 232.0) * self.damage / 100.0)
