@@ -506,4 +506,5 @@ class Needle:
         self.y = self.y - dX * math.sin(self.w)
 
         self.compute_corners()
+        self.poly = Polygon(self.corners)
         self.thread_points.append((self.x, self.y))
