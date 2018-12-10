@@ -70,9 +70,9 @@ class Environment:
 
         self.needle.draw()
 
-        if(save_image):
+        if save_image:
             frame.invert_xaxis()
-            plt.savefig(str(self.t) + '.png')
+            plt.savefig('{:03d}.png'.format(self.t))
             plt.close('all')
 
     def in_gate(self, demo):
