@@ -389,16 +389,13 @@ class Surface:
 
 
         self.deep = isdeep[0] == 'true'
-
-        if self.deep:
-            self.color = [207./255, 69./255, 32./255]
-        else:
-            self.color = [232./255, 146./255, 124./255]
+        self.deep_color = np.array([207., 69., 32.]) / 255
+        self.light_color = np.array([232., 146., 124.]) / 255
+        self.color = np.array(self.deep_color if self.deep else self.light_color)
 
         self.poly = Polygon(self.corners)
 
     def calc_damage(self, movement):
-        print("damage =", self.damage)
         dw = movement[1]
         if abs(dw) > 0.01:
             self.damage += (abs(dw) - 0.01) * 100
@@ -407,11 +404,9 @@ class Surface:
             self.update_color()
 
     def update_color(self):
-        r = 232 + ((207.0 - 232.0) * self.damage / 100.0)
-        g = 146 + ((69.0 - 146.0) * self.damage / 100.0)
-        b = 142 + ((32.0 - 142.0) * self.damage / 100.0)
-
-        self.color = (255/255.0, r/255.0, g/255.0, b/255.0)
+        alpha = self.damage / 100.
+        beta = (100. - self.damage) / 100.
+        self.color = beta * self.light_color + alpha * self.deep_color
 
 class Needle:
 
