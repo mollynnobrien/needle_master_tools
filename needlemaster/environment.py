@@ -388,16 +388,17 @@ class Surface:
         self.corners[:,1] = self.env_height - self.corners[:,1]
 
 
-        self.deep = (isdeep[0] == 'true')
+        self.deep = isdeep[0] == 'true'
 
-        if not self.deep:
-            self.color = [232./255, 146./255, 124./255]
-        else:
+        if self.deep:
             self.color = [207./255, 69./255, 32./255]
+        else:
+            self.color = [232./255, 146./255, 124./255]
 
         self.poly = Polygon(self.corners)
 
     def calc_damage(self, movement):
+        print("damage =", self.damage)
         dw = movement[1]
         if abs(dw) > 0.01:
             self.damage += (abs(dw) - 0.01) * 100
