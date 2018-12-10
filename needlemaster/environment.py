@@ -37,7 +37,8 @@ class Environment:
         self.gates    = []
         self.surfaces = []
         self.t        = 0
-        self.damage   = 0 # environment damage is the sum of the damage to all surfaces in the scene
+        # environment damage is the sum of the damage to all surfaces
+        self.damage   = 0 
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
         self.max_time = 200
@@ -70,9 +71,9 @@ class Environment:
 
         self.needle.draw()
 
-        if(save_image):
+        if save_image:
             frame.invert_xaxis()
-            plt.savefig(str(self.t) + '.png')
+            plt.savefig('{:03d}.png'.format(self.t))
             plt.close('all')
 
     def in_gate(self, demo):
@@ -119,18 +120,15 @@ class Environment:
             Move one time step forward
         """
         self.needle.move(action)
-        # self.update_damage()
+        self.update_damage(action)
         self.t = self.t + 1
 
-    def update_damage(self):
-        for s in self.surfaces:
-            environment_damage = 0
-            if needle in surface:
-                if abs(self.w) > 0.01:
-                    s.damage = s.damage + (abs(self.w) - 0.01)*100
-                    s.update_color()
-                environment_damage = environment_damage + s.damage
-        self.damage = environment_damage
+    def update_damage(self, movement):
+        self.damage = 0
+        for surface in self.surfaces:
+            if check_intersect(self.needle, surface):
+                surface.calc_damage(movement)
+            self.damage += surface.damage
 
     def check_status(self):
         """
@@ -141,8 +139,8 @@ class Environment:
         x = self.needle.x
         y = self.needle.y
 
-        valid_x = (x >= 0) and (x <= self.width)
-        valid_y = (y >= 0) and (y <= self.height)
+        valid_x = x >= 0 and x <= self.width
+        valid_y = y >= 0 and y <= self.height
         valid_pos = valid_x and valid_y
         if not valid_pos:
             print("Invalid position")
@@ -186,7 +184,7 @@ class Environment:
         passed_gates = self.compute_passed_gates()
         num_gates = len(self.gates)
 
-        if(num_gates == 0):
+        if num_gates == 0:
             gate_score = 1000
         else:
             gate_score = 1000 * float(passed_gates)/num_gates
@@ -399,14 +397,18 @@ class Surface:
 
         self.poly = Polygon(self.corners)
 
-    def update_color(self):
-        damage = self.damage
-        if(damage > 100):
-            damage = 100
+    def calc_damage(self, movement):
+        dw = movement[1]
+        if abs(dw) > 0.01:
+            self.damage += (abs(dw) - 0.01) * 100
+            if self.damage > 100:
+                self.damage = 100
+            self.update_color()
 
-        r = 232 + ((207.0 - 232.0) * damage / 100.0)
-        g = 146 + ((69.0 - 146.0) * damage / 100.0)
-        b = 142 + ((32.0 - 142.0) * damage / 100.0)
+    def update_color(self):
+        r = 232 + ((207.0 - 232.0) * self.damage / 100.0)
+        g = 146 + ((69.0 - 146.0) * self.damage / 100.0)
+        b = 142 + ((32.0 - 142.0) * self.damage / 100.0)
 
         self.color = (255/255.0, r/255.0, g/255.0, b/255.0)
 
@@ -415,8 +417,7 @@ class Needle:
     def __init__(self, env_width, env_height):
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
-        self.PI = 3.141592654
-        self.w = self.PI
+        self.w = math.pi
         self.corners = None
 
         self.max_dXY      = 75
@@ -446,8 +447,8 @@ class Needle:
         x = self.x
         y = self.env_height - self.y
 
-        top_w = w - self.PI/2
-        bot_w = w + self.PI/2
+        top_w = w - math.pi/2
+        bot_w = w + math.pi/2
 
         length = self.length_const * self.scale
 
