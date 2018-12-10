@@ -139,8 +139,8 @@ class Environment:
         x = self.needle.x
         y = self.needle.y
 
-        valid_x = (x >= 0) and (x <= self.width)
-        valid_y = (y >= 0) and (y <= self.height)
+        valid_x = x >= 0 and x <= self.width
+        valid_y = y >= 0 and y <= self.height
         valid_pos = valid_x and valid_y
         if not valid_pos:
             print("Invalid position")
@@ -184,7 +184,7 @@ class Environment:
         passed_gates = self.compute_passed_gates()
         num_gates = len(self.gates)
 
-        if(num_gates == 0):
+        if num_gates == 0:
             gate_score = 1000
         else:
             gate_score = 1000 * float(passed_gates)/num_gates
@@ -417,8 +417,7 @@ class Needle:
     def __init__(self, env_width, env_height):
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
-        self.PI = 3.141592654
-        self.w = self.PI
+        self.w = math.pi
         self.corners = None
 
         self.max_dXY      = 75
@@ -448,8 +447,8 @@ class Needle:
         x = self.x
         y = self.env_height - self.y
 
-        top_w = w - self.PI/2
-        bot_w = w + self.PI/2
+        top_w = w - math.pi/2
+        bot_w = w + math.pi/2
 
         length = self.length_const * self.scale
 
