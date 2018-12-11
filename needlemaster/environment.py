@@ -94,11 +94,6 @@ class Environment:
         else:
             plt.close('all')
 
-    def in_gate(self, demo):
-        for gate in self.gates:
-            print gate.contains(demo.s)
-        return False
-
     @staticmethod
     def parse_name(filename):
         toks = filename.split('/')[-1].split('.')[0].split('_')
