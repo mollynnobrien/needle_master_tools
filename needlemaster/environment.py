@@ -134,12 +134,12 @@ class Environment:
         """
         if not self.done:
             self.needle.move(action)
-            self.update_damage(action)
+            self._update_damage(action)
             self.t = self.t + 1
             self.done = not self.check_status()
             return self.render()
 
-    def update_damage(self, movement):
+    def _update_damage(self, movement):
         self.damage = 0
         for surface in self.surfaces:
             if check_intersect(self.needle, surface):
@@ -162,7 +162,7 @@ class Environment:
             print("Invalid position")
 
         # have you hit deep tissue?
-        valid_deep = not self.deep_tissue_intersect()
+        valid_deep = not self._deep_tissue_intersect()
         if not valid_deep:
             print("Punctured deep tissue")
 
@@ -178,7 +178,7 @@ class Environment:
 
         return valid_pos and valid_deep and valid_t
 
-    def deep_tissue_intersect(self):
+    def _deep_tissue_intersect(self):
         """
             check each surface, does the needle intersect the
             surface? is the surface deep?
@@ -188,7 +188,7 @@ class Environment:
                 return True
         return False
 
-    def compute_passed_gates(self):
+    def _compute_passed_gates(self):
         passed_gates = 0
         # see if thread_points goes through the gate at any points
         for gate in self.gates:
@@ -196,8 +196,8 @@ class Environment:
             passed_gates = passed_gates + pass_gate
         return passed_gates
 
-    def gate_score(self):
-        passed_gates = self.compute_passed_gates()
+    def _gate_score(self):
+        passed_gates = self._compute_passed_gates()
         num_gates = len(self.gates)
 
         if num_gates == 0:
@@ -206,7 +206,7 @@ class Environment:
             gate_score = 1000 * float(passed_gates)/num_gates
         return gate_score
 
-    def time_score(self):
+    def _time_score(self):
         ''' TODO this doesn't make sense right now because we are
             measuring time stamps not milliseconds, we should change
             the threshold
@@ -221,12 +221,12 @@ class Environment:
             time_score = 1000 * float(time_remaining)/t
         return time_score
 
-    def path_score(self):
-        path_length = self.get_path_len()
+    def _path_score(self):
+        path_length = self._get_path_len()
         path_score = -50*path_length
         return path_score
 
-    def get_path_len(self):
+    def _get_path_len(self):
         """
                 Compute the path length using the thread points
         """
@@ -241,9 +241,9 @@ class Environment:
 
         return path_len
 
-    def damage_score(self):
+    def _damage_score(self):
         damage = -4 * self.damage
-        if(self.deep_tissue_intersect):
+        if self._deep_tissue_intersect:
             damage = damage - 1000
 
         damage_score = damage
@@ -254,10 +254,10 @@ class Environment:
         """
             compute the score for the demonstration
         """
-        gate_score   = self.gate_score()
-        time_score   = self.time_score()
-        path_score   = self.path_score()
-        damage_score = self.damage_score()
+        gate_score   = self._gate_score()
+        time_score   = self._time_score()
+        path_score   = self._path_score()
+        damage_score = self._damage_score()
         return gate_score + time_score + path_score + damage_score
 
 class Gate:
@@ -452,10 +452,10 @@ class Needle:
         self.load()
 
     def draw(self):
-        self.draw_needle()
-        self.draw_thread()
+        self._draw_needle()
+        self._draw_thread()
 
-    def compute_corners(self):
+    def _compute_corners(self):
         """
             given x,y,w compute needle corners and save
         """
@@ -479,12 +479,12 @@ class Needle:
 
         self.corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
 
-    def draw_needle(self):
+    def _draw_needle(self):
         axes = plt.gca()
         axes.add_patch(Poly(array_to_tuples(self.corners),
             color=self.needle_color))
 
-    def draw_thread(self):
+    def _draw_thread(self):
         if len(self.thread_points) > 0:
             thread_points = np.array(self.thread_points)
             plt.plot(thread_points[:,0],
@@ -496,7 +496,7 @@ class Needle:
             Load the current needle position
         """
         # compute the corners for the current position
-        self.compute_corners()
+        self._compute_corners()
         self.poly = Polygon(self.corners)
 
     def move(self, movement):
@@ -521,6 +521,6 @@ class Needle:
         self.x = self.x + dX * math.cos(self.w)
         self.y = self.y - dX * math.sin(self.w)
 
-        self.compute_corners()
+        self._compute_corners()
         self.poly = Polygon(self.corners)
         self.thread_points.append((self.x, self.y))
