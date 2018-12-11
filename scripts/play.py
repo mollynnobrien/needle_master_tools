@@ -21,11 +21,11 @@ def playback(env_path, demo_path):
 
     """ ..................................... """
     running = True
-    environment.draw(True)
+    environment.render(save_image=True)
 
     while(running):
         environment.step(actions[environment.t,0:2])
-        environment.draw(True)
+        environment.render(save_image=True)
         running = environment.check_status()
 
     print("________________________")
