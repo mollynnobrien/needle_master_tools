@@ -3,7 +3,7 @@ import sys
 from context import needlemaster as nm
 from pdb import set_trace as woah
 
-def playback(env_path, demo_path):
+def playback(env_path, demo_path, device):
     """
             Molly 11/30/2018
 
@@ -16,30 +16,36 @@ def playback(env_path, demo_path):
     """
     environment = nm.Environment(env_path)
     demo        = nm.Demo(environment.width, environment.height, filename=demo_path)
-    actions     = demo.u; actions[:,0] = actions[:, 0]
+    actions     = demo.u;
     state       = demo.s;
 
+    if(device == 'mollys_phone'):
+        demo.device_width = 2560
+        demo.device_height = 1440
+    # convert the coordinates into the default image size
+    # demo.convert()
     """ ..................................... """
     running = True
     environment.draw(True)
 
     while(running):
-        environment.step(actions[environment.t,0:2])
+        running = environment.step(actions[environment.t,0:2])
         environment.draw(True)
-        running = environment.check_status()
 
     print("________________________")
     print(" Level " + str(demo.env))
-    print(" Score " + str(environment.score()))
+    environment.score(True)
     print("________________________")
     """ ..................................... """
+    woah()
+
 
 #-------------------------------------------------------
 # main()
 args = sys.argv
 print(len(args))
-if(len(args) == 3):
-    playback(args[1], args[2])
+if(len(args) == 4):
+    playback(args[1], args[2], args[3])
 else:
     print("ERROR: 2 command line arguments required")
-    print("[Usage] python play.py <path to environment file> <path to demonstration>")
+    print("[Usage] python play.py <path to environment file> <path to demonstration> <demo device>")
