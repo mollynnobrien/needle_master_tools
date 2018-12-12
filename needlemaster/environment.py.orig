@@ -37,9 +37,23 @@ class Environment:
         self.t = 0
         self.height   = 0
         self.width    = 0
+<<<<<<< HEAD
+        self.ngates   = 0
+        self.gates    = []
+        self.surfaces = []
+        self.t        = 0
+        # environment damage is the sum of the damage to all surfaces
+        self.damage   = 0
+        self.needle   = None
+        ''' TODO: how do we want to constrain the game time? '''
+        self.max_time = 300
+        self.background_color = [99/255., 153/255., 174/255.]
+        self.passed_gates = 0
+=======
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
         self.max_time = 200
+>>>>>>> d314148b08d2f7769c799089f19caf9e71310144
         ''' TODO keep track of which gate is next '''
         self.next_gate    = None
         self.filename = filename
@@ -138,6 +152,7 @@ class Environment:
             Move one time step forward
             Returns the state of the world (in our case, an image)
         """
+<<<<<<< HEAD
         needle_in_tissue = self.needle_in_tissue()
         self.needle.move(action, needle_in_tissue)
         self.update_damage(action)
@@ -161,6 +176,16 @@ class Environment:
         return s_flag
 
     def update_damage(self, movement):
+=======
+        if not self.done:
+            self.needle.move(action)
+            self._update_damage(action)
+            self.t = self.t + 1
+            self.done = not self.check_status()
+            return self.render()
+
+    def _update_damage(self, movement):
+>>>>>>> d314148b08d2f7769c799089f19caf9e71310144
         self.damage = 0
         for surface in self.surfaces:
             if self.needle_in_surface(surface):
@@ -290,10 +315,11 @@ class Environment:
         """
             compute the score for the demonstration
         """
-        gate_score   = self._gate_score()
-        time_score   = self._time_score()
-        path_score   = self._path_score()
-        damage_score = self._damage_score()
+<<<<<<< HEAD
+        gate_score   = self.gate_score()
+        time_score   = self.time_score()
+        path_score   = self.path_score()
+        damage_score = self.damage_score()
 
         score = gate_score + time_score + path_score + damage_score
         if(print_flag):
@@ -305,6 +331,13 @@ class Environment:
             print("Damage Score: " + str(damage_score))
 
         return score
+=======
+        gate_score   = self._gate_score()
+        time_score   = self._time_score()
+        path_score   = self._path_score()
+        damage_score = self._damage_score()
+        return gate_score + time_score + path_score + damage_score
+>>>>>>> d314148b08d2f7769c799089f19caf9e71310144
 
 class Gate:
     color_passed = np.array([100., 175., 100.]) / 255
@@ -343,6 +376,7 @@ class Gate:
     def contains(self, poly, traj):
         return [poly.contains(Point(x)) for x in traj]
 
+<<<<<<< HEAD
     def update(self, pos):
         ''' take in current position,
             see if you passed or failed the gate'''
@@ -357,6 +391,17 @@ class Gate:
             self.c1 = [100/255., 175/255., 100/255.]
             self.c2 = [100/255., 175/255., 100/255.]
             self.c3 = [100/255., 175/255., 100/255.]
+=======
+    def passed(self):
+        self.c1 = self.color_passed
+        self.c2 = self.color_passed
+        self.c3 = self.color_passed
+
+    def failed(self):
+        self.c1 = self.color_failed
+        self.c2 = self.color_failed
+        self.c3 = self.color_failed
+>>>>>>> d314148b08d2f7769c799089f19caf9e71310144
 
     def draw(self):
         """

@@ -29,9 +29,14 @@ def playback(env_path, demo_path, device):
     environment.render(save_image=True)
 
     while(running):
+<<<<<<< HEAD
+        running = environment.step(actions[environment.t,0:2])
+        environment.draw(True)
+=======
         environment.step(actions[environment.t,0:2])
         environment.render(save_image=True)
         running = environment.check_status()
+>>>>>>> d314148b08d2f7769c799089f19caf9e71310144
 
     print("________________________")
     print(" Level " + str(demo.env))
