@@ -39,7 +39,7 @@ class Environment:
         self.width    = 0
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
-        self.max_time = 200
+        self.max_time = 300
         ''' TODO keep track of which gate is next '''
         self.next_gate    = None
         self.filename = filename
@@ -233,6 +233,10 @@ class Environment:
         return passed_gates
 
     def _gate_score(self):
+        '''
+                if you pass all gates or there are no gates: 1000 pts
+                        don't pass all gates: 1000 * (passed_gates/all_gates) pts
+        '''
         passed_gates = self._compute_passed_gates()
         num_gates = len(self.gates)
 
@@ -243,23 +247,33 @@ class Environment:
         return gate_score
 
     def _time_score(self):
-        ''' TODO this doesn't make sense right now because we are
-            measuring time stamps not milliseconds, we should change
-            the threshold
-            --- right now I'm changing it to 1/3 of self.max_time because
-            orig 5000 was 1/3*15000
-            '''
-        time_remaining = self.max_time - self.t
-        t = (1/3.0) * self.max_time
-        if time_remaining > t:
+        '''
+            if more than 1/3 of the time is left: 1000 pts
+            else decrease score linearly s.t. score at t=max_time -> 0pts
+        '''
+        t = self.t
+        T = self.max_time
+
+        if t <= (1/3.) * T:
             time_score = 1000
         else:
-            time_score = 1000 * float(time_remaining)/t
+            m = -1000/(2*T/3.)
+            time_score = 1500 + m*t
         return time_score
 
     def _path_score(self):
-        path_length = self._get_path_len()
-        path_score = -50*path_length
+        '''
+            if path_len <= screen_width -> no penalty
+            else decrease score linearly s.t. score at screen_width*3 -> -1000pts
+        '''
+        w = self._get_path_len()
+        W = self.width
+        if(w <= W):
+            path_score = 0
+        else:
+            # limit the path length to 3*W
+            w = max(w, 3*W)
+            path_score = -1000.0/(2*W)*(w - W)
         return path_score
 
     def _get_path_len(self):
@@ -278,17 +292,30 @@ class Environment:
         return path_len
 
     def _damage_score(self):
-        damage = -4 * self.damage
-        if self._deep_tissue_intersect:
+        '''
+                damage from tissue btwn [0, 100]. Scale to between [-1000,0]
+                damage from deep tissue is -1000
+        '''
+        damage = -10.0 * self.damage
+        if(self._deep_tissue_intersect()):
+            print("deep tissue intersect!")
             damage = damage - 1000
-
+        woah()
         damage_score = damage
-
         return damage_score
 
     def score(self, print_flag=False):
         """
             compute the score for the demonstration
+
+            gate_score: [0, 1000]
+            time_score: [0, 1000]
+            path_score: [-1000, 0]
+            damage_score: [-2000, 0]
+
+            max score:  2000
+            min score: -3000
+
         """
         gate_score   = self._gate_score()
         time_score   = self._time_score()

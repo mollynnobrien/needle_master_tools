@@ -3,7 +3,7 @@ import sys
 from context import needlemaster as nm
 from pdb import set_trace as woah
 
-def playback(env_path, demo_path, device):
+def playback(env_path, demo_path):
     """
             Molly 11/30/2018
 
@@ -19,11 +19,6 @@ def playback(env_path, demo_path, device):
     actions     = demo.u;
     state       = demo.s;
 
-    if(device == 'mollys_phone'):
-        demo.device_width = 2560
-        demo.device_height = 1440
-    # convert the coordinates into the default image size
-    # demo.convert()
     """ ..................................... """
     running = True
     environment.render(save_image=True)
@@ -45,8 +40,8 @@ def playback(env_path, demo_path, device):
 # main()
 args = sys.argv
 print(len(args))
-if(len(args) == 4):
-    playback(args[1], args[2], args[3])
+if(len(args) == 3):
+    playback(args[1], args[2])
 else:
     print("ERROR: 2 command line arguments required")
-    print("[Usage] python play.py <path to environment file> <path to demonstration> <demo device>")
+    print("[Usage] python play.py <path to environment file> <path to demonstration>")
