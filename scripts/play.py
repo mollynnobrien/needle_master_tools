@@ -14,18 +14,17 @@ def playback(env_path, demo_path):
                 env_path: path/to/corresponding/environment/file
                 demo_path: path/to/demo/file
     """
-    environment = nm.Environment(env_path, save_image = True)
+    environment = nm.Environment(env_path)
     demo        = nm.Demo(environment.width, environment.height, filename=demo_path)
     actions     = demo.u;
     state       = demo.s;
 
     """ ..................................... """
     running = True
-    environment.render()
+    environment.render(save_image=True)
 
     while(running):
-        environment.step(actions[environment.t,0:2])
-        environment.render()
+        environment.step(actions[environment.t,0:2], save_image=True)
         running = environment.check_status()
 
     print("________________________")
@@ -39,7 +38,7 @@ def playback(env_path, demo_path):
 # main()
 args = sys.argv
 print(len(args))
-if(len(args) == 3):
+if len(args) == 3:
     playback(args[1], args[2])
 else:
     print("ERROR: 2 command line arguments required")
