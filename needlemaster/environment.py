@@ -45,7 +45,7 @@ class Environment:
         self.next_gate    = None
         self.filename = filename
         self.save_image = save_image
-        if self.save_image and not os.path.exists('./out'):
+        if not os.path.exists('./out'):
             os.mkdir('./out')
 
         self.reset()
@@ -69,7 +69,7 @@ class Environment:
         self.needle = Needle(self.width, self.height)
 
 
-    def render(self, mode='rgb_array'):
+    def render(self, mode='rgb_array', save_image=False):
         fig = plt.figure()
         plt.ylim(self.height)
         plt.xlim(self.width)
@@ -86,7 +86,7 @@ class Environment:
 
         self.needle.draw()
 
-        if self.save_image:
+        if save_image or self.save_image:
             frame.invert_xaxis()
             plt.savefig('./out/{:03d}.png'.format(self.t))
 
