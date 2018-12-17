@@ -14,18 +14,18 @@ def playback(env_path, demo_path):
                 env_path: path/to/corresponding/environment/file
                 demo_path: path/to/demo/file
     """
-    environment = nm.Environment(env_path)
+    environment = nm.Environment(env_path, save_image = True)
     demo        = nm.Demo(environment.width, environment.height, filename=demo_path)
     actions     = demo.u;
     state       = demo.s;
 
     """ ..................................... """
     running = True
-    environment.render(save_image=True)
+    environment.render()
 
     while(running):
         environment.step(actions[environment.t,0:2])
-        environment.render(save_image=True)
+        environment.render()
         running = environment.check_status()
 
     print("________________________")
@@ -33,7 +33,6 @@ def playback(env_path, demo_path):
     environment.score(True)
     print("________________________")
     """ ..................................... """
-    woah()
 
 
 #-------------------------------------------------------

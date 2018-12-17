@@ -4,6 +4,7 @@ Created on Thu Oct 08 11:30:52 2015
 
 @author: Chris Paxton
 """
+import os
 import math
 import numpy as np
 import matplotlib
@@ -32,7 +33,7 @@ class Environment:
 
     background_color = np.array([99., 153., 174.]) / 255
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, save_image=False):
 
         self.t = 0
         self.height   = 0
@@ -43,6 +44,9 @@ class Environment:
         ''' TODO keep track of which gate is next '''
         self.next_gate    = None
         self.filename = filename
+        self.save_image = save_image
+        if self.save_image and not os.path.exists('./out'):
+            os.mkdir('./out')
 
         self.reset()
 
@@ -65,7 +69,7 @@ class Environment:
         self.needle = Needle(self.width, self.height)
 
 
-    def render(self, mode='rgb_array', save_image=False):
+    def render(self, mode='rgb_array'):
         fig = plt.figure()
         plt.ylim(self.height)
         plt.xlim(self.width)
@@ -82,9 +86,9 @@ class Environment:
 
         self.needle.draw()
 
-        if save_image:
+        if self.save_image:
             frame.invert_xaxis()
-            plt.savefig('{:03d}.png'.format(self.t))
+            plt.savefig('./out/{:03d}.png'.format(self.t))
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
@@ -306,7 +310,6 @@ class Environment:
         if(self._deep_tissue_intersect()):
             print("deep tissue intersect!")
             damage = damage + MIN_SCORE
-        woah()
         damage_score = damage
         return damage_score
 
