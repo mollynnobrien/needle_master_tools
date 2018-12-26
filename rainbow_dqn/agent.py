@@ -3,7 +3,7 @@ import random
 import torch
 from torch import optim
 
-from model import DQN
+from .model import DQN
 
 
 class Agent():

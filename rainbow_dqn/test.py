@@ -4,7 +4,7 @@ from plotly.graph_objs import Scatter
 from plotly.graph_objs.scatter import Line
 import torch
 
-from env import Env
+from .env import Env
 
 
 # Globals

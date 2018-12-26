@@ -5,10 +5,10 @@ from datetime import datetime
 import random
 import torch
 
-from agent import Agent
-from env import Env
-from memory import ReplayMemory
-from test import test
+from .agent import Agent
+from .env import Env
+from .memory import ReplayMemory
+from .test import test
 
 
 parser = argparse.ArgumentParser(description='Rainbow')
