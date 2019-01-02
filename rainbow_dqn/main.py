@@ -6,9 +6,11 @@ import random
 import torch
 
 from .agent import Agent
-from .env import Env
+#from .env import Env
 from .memory import ReplayMemory
 from .test import test
+
+from needlemaster.environment import Environment, mode_rl
 
 
 parser = argparse.ArgumentParser(description='Rainbow')
@@ -42,6 +44,7 @@ parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', 
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--log-interval', type=int, default=25000, metavar='STEPS', help='Number of training steps between logging status')
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
+parser.add_argument('filename', help='File for environment') 
 
 
 # Setup
@@ -65,7 +68,7 @@ def log(s):
 
 
 # Environment
-env = Env(args)
+env = Environment(filename=args.filename, mode=mode_rl)
 env.train()
 action_space = env.action_space()
 

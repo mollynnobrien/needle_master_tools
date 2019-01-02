@@ -8,6 +8,7 @@ import os
 import math
 import numpy as np
 import matplotlib
+import torch
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as Poly
@@ -28,12 +29,19 @@ def array_to_tuples(array):
 # def check_intersect(a, b):
 #     return a.poly.intersection(b.poly).area > 0.
 
+moves = [-0.1, -0.05, 0.05, 0.1]
+move_array = [(x, y) for x in moves for y in moves]
+
+# Different behaviors for demo/rl, as they have slightly different requirements
+mode_demo = 0
+mode_rl = 1
+
 class Environment:
     metadata = {'render.modes': ['rgb_array']}
 
     background_color = np.array([99., 153., 174.]) / 255
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, mode=mode_demo):
 
         self.t = 0
         self.height   = 0
@@ -46,8 +54,17 @@ class Environment:
         self.filename = filename
         if not os.path.exists('./out'):
             os.mkdir('./out')
+        self.mode = mode
 
         self.reset()
+
+    def train(self):
+        ''' Dummy method '''
+        pass
+
+    def action_space(self):
+        ''' Return the action space size of the environment '''
+        return len(move_array)
 
     def reset(self):
         ''' Create a new environment. Currently based on attached filename '''
@@ -66,6 +83,8 @@ class Environment:
                 self.load(file)
 
         self.needle = Needle(self.width, self.height)
+
+        return torch.from_numpy(self.render(save_image=False))
 
 
     def render(self, mode='rgb_array', save_image=False):
@@ -139,17 +158,21 @@ class Environment:
     def step(self, action, save_image=False):
         """
             Move one time step forward
-            Returns: 
+            Returns:
               * state of the world (in our case, an image)
               * reward
               * done
         """
+        if self.mode == mode_rl:
+            action = move_array[action]
+
         needle_in_tissue = self._needle_in_tissue()
         self.needle.move(action, needle_in_tissue)
         self._update_damage(action)
         running = self.check_status()
         self.t += 1
-        return (self.render(save_image=save_image), self.score(), not running)
+        return (torch.from_numpy(self.render(save_image=save_image)),
+                self.score(), not running)
 
     def _needle_in_tissue(self):
         for s in self.surfaces:
@@ -398,12 +421,12 @@ class Gate:
         private static final int warning = Color.argb(255, 255, 50, 12);
         """
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners),color=self.c1))
+        axes.add_patch(Poly(self.corners, color=self.c1))
         if self.status == 'next_gate':
-            axes.add_patch(Poly(array_to_tuples(self.corners),
+            axes.add_patch(Poly(self.corners,
                 facecolor=self.c1, edgecolor='green'))
-        axes.add_patch(Poly(array_to_tuples(self.top), facecolor=self.c2))
-        axes.add_patch(Poly(array_to_tuples(self.bottom), facecolor=self.c3))
+        axes.add_patch(Poly(self.top, facecolor=self.c2))
+        axes.add_patch(Poly(self.bottom, facecolor=self.c3))
         # if next_gate, outline in green
 
     '''
@@ -461,7 +484,7 @@ class Gate:
 
 class Surface:
 
-    def __init__(self,env_width,env_height):
+    def __init__(self, env_width, env_height):
         self.deep = False
         self.corners = None
         self.color = None
@@ -475,7 +498,8 @@ class Surface:
     def draw(self):
         ''' update damage and surface color '''
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners), color=self.color))
+        print(self.corners)
+        axes.add_patch(Poly(self.corners, color=self.color))
     '''
     Load surface from file at the current position
     '''
@@ -561,8 +585,7 @@ class Needle:
 
     def _draw_needle(self):
         axes = plt.gca()
-        axes.add_patch(Poly(array_to_tuples(self.corners),
-            color=self.needle_color))
+        axes.add_patch(Poly(self.corners, color=self.needle_color))
 
     def _draw_thread(self):
         if len(self.thread_points) > 0:
