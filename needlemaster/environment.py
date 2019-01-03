@@ -89,7 +89,7 @@ class Environment:
 
 
     def render(self, mode='rgb_array', save_image=False):
-        fig = plt.figure(figsize=(2,2), dpi=100)
+        fig = plt.figure(figsize=(2.24,2.24), dpi=100)
         plt.ylim(self.height)
         plt.xlim(self.width)
         frame = plt.gca()
@@ -114,7 +114,6 @@ class Environment:
             fig.canvas.draw()
             buf = fig.canvas.tostring_rgb()
             ncols, nrows = fig.canvas.get_width_height()
-            print(ncols, nrows)
             plt.close('all')
             arr = np.fromstring(buf, dtype=np.uint8).reshape(nrows, ncols, 3)
             arr = arr.astype(np.float32)

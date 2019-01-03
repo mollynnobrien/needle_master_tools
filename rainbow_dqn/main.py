@@ -102,7 +102,7 @@ else:
   while T < args.T_max:
     if done:
       state, done = env.reset(), False
-    
+
     if T % args.replay_frequency == 0:
       dqn.reset_noise()  # Draw a new set of noisy weights
 
