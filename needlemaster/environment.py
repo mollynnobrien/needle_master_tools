@@ -41,7 +41,7 @@ class Environment:
 
     background_color = np.array([99., 153., 174.]) / 255
 
-    def __init__(self, filename=None, mode=mode_demo):
+    def __init__(self, filename=None, mode=mode_demo, device=torch.device('cpu')):
 
         self.t = 0
         self.height   = 0
@@ -55,6 +55,7 @@ class Environment:
         if not os.path.exists('./out'):
             os.mkdir('./out')
         self.mode = mode
+        self.device = device
 
         self.reset()
 
@@ -84,11 +85,11 @@ class Environment:
 
         self.needle = Needle(self.width, self.height)
 
-        return torch.from_numpy(self.render(save_image=False))
+        return self.render(save_image=True)
 
 
     def render(self, mode='rgb_array', save_image=False):
-        fig = plt.figure()
+        fig = plt.figure(figsize=(2,2), dpi=100)
         plt.ylim(self.height)
         plt.xlim(self.width)
         frame = plt.gca()
@@ -113,8 +114,12 @@ class Environment:
             fig.canvas.draw()
             buf = fig.canvas.tostring_rgb()
             ncols, nrows = fig.canvas.get_width_height()
+            print(ncols, nrows)
             plt.close('all')
-            return np.fromstring(buf, dtype=np.uint8).reshape(nrows, ncols, 3)
+            arr = np.fromstring(buf, dtype=np.uint8).reshape(nrows, ncols, 3)
+            arr = arr.astype(np.float32)
+            arr /= 255.
+            return torch.from_numpy(arr).permute(2,0,1).to(device=self.device)
         else:
             plt.close('all')
 
@@ -171,8 +176,7 @@ class Environment:
         self._update_damage(action)
         running = self.check_status()
         self.t += 1
-        return (torch.from_numpy(self.render(save_image=save_image)),
-                self.score(), not running)
+        return (self.render(save_image=save_image), self.score(), not running)
 
     def _needle_in_tissue(self):
         for s in self.surfaces:
@@ -498,7 +502,6 @@ class Surface:
     def draw(self):
         ''' update damage and surface color '''
         axes = plt.gca()
-        print(self.corners)
         axes.add_patch(Poly(self.corners, color=self.color))
     '''
     Load surface from file at the current position

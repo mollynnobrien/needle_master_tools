@@ -19,7 +19,7 @@ parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=int(50e6), metavar='STEPS', help='Number of training steps (4x number of frames)')
 parser.add_argument('--max-episode-length', type=int, default=int(108e3), metavar='LENGTH', help='Max episode length (0 to disable)')
-parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')
+parser.add_argument('--history-length', type=int, default=3, metavar='T', help='Number of consecutive states processed')
 parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
 parser.add_argument('--noisy-std', type=float, default=0.1, metavar='σ', help='Initial standard deviation of noisy linear layers')
 parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
@@ -44,7 +44,7 @@ parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', 
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--log-interval', type=int, default=25000, metavar='STEPS', help='Number of training steps between logging status')
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
-parser.add_argument('filename', help='File for environment') 
+parser.add_argument('filename', help='File for environment')
 
 
 # Setup
@@ -68,7 +68,7 @@ def log(s):
 
 
 # Environment
-env = Environment(filename=args.filename, mode=mode_rl)
+env = Environment(filename=args.filename, mode=mode_rl, device=args.device)
 env.train()
 action_space = env.action_space()
 
