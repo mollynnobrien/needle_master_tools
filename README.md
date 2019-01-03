@@ -4,3 +4,6 @@ To use this code, download the game Needle Master [from the Google Play store](h
 
 Installing the requirements for this python module is as simple as calling `python setup.py develop --user`
 
+To run DQN on an example environment, call
+`python3 -m rainbow_dqn.main data/environment_14.txt`
+
