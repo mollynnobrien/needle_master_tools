@@ -296,7 +296,7 @@ class Environment:
             else decrease score linearly s.t. score at screen_width*3 -> -1000pts
         '''
         MIN_SCORE = -1000.0
-        w = self._get_path_len()
+        w = self.needle.path_length
         W = self.width
         if w <= W:
             path_score = 0
@@ -305,21 +305,6 @@ class Environment:
             w = max(w, 3*W)
             path_score = MIN_SCORE/(2*W)*(w - W)
         return path_score
-
-    def _get_path_len(self):
-        """
-                Compute the path length using the thread points
-        """
-        path_len = 0
-        thread_points = np.array(self.needle.thread_points)
-        for i in range(len(thread_points) - 1):
-            pt_1 = thread_points[i, :]
-            pt_2 = thread_points[i+1, :]
-
-            dX = np.linalg.norm(pt_1 - pt_2)
-            path_len = path_len + dX
-
-        return path_len
 
     def _damage_score(self):
         '''
@@ -553,7 +538,8 @@ class Needle:
         self.needle_color  = np.array([134., 200., 188.])/255
         self.thread_color  = np.array([167., 188., 214.])/255
 
-        self.thread_points = []
+        self.thread_points = [(self.x, self.y)]
+        self.path_length = 0.
 
         self.load()
 
@@ -595,7 +581,6 @@ class Needle:
             plt.plot(thread_points[:,0],
                     self.env_height - thread_points[:, 1],
                     c=self.thread_color)
-
     def load(self):
         """
             Load the current needle position
@@ -622,7 +607,7 @@ class Needle:
         dX = movement[0]
         dw = movement[1]
 
-        if(needle_in_tissue):
+        if needle_in_tissue:
             dw = 0.5 * dw
             if(abs(dw)> 0.01):
                 dw = 0.02 * np.sign(dw)
@@ -633,4 +618,8 @@ class Needle:
 
         self._compute_corners()
         self.poly = Polygon(self.corners)
-        self.thread_points.append((self.x, self.y))
+        self.thread_points.append(np.array([self.x, self.y]))
+        dx = self.thread_points[-1][0] - self.thread_points[-2][0]
+        dy = self.thread_points[-1][1] - self.thread_points[-2][1]
+        dlength = math.sqrt(dx * dx + dy * dy)
+        self.path_length += dlength
