@@ -41,6 +41,8 @@ class Environment:
 
     background_color = np.array([99., 153., 174.]) / 255
 
+    record_interval = 10 # how often to record an episode
+
     def __init__(self, filename=None, mode=mode_demo, device=torch.device('cpu')):
 
         self.t = 0
@@ -56,6 +58,7 @@ class Environment:
             os.mkdir('./out')
         self.mode = mode
         self.device = device
+        self.episode = 0
 
         self.reset()
 
@@ -78,6 +81,8 @@ class Environment:
         self.damage = 0
         self.passed_gates = 0
         self.next_gate = None
+        self.episode += 1 # next episode
+        self.record = (self.episode % self.record_interval == 0)
 
         if self.filename is not None:
             with open(self.filename, 'r') as file:
@@ -85,11 +90,11 @@ class Environment:
 
         self.needle = Needle(self.width, self.height)
 
-        return self.render(save_image=True)
+        return self.render(save_image=False)
 
 
     def render(self, mode='rgb_array', save_image=False):
-        fig = plt.figure(figsize=(2.24,2.24), dpi=100)
+        fig = plt.figure(figsize=(2.24,2.24), dpi=100) # 224x224
         plt.ylim(self.height)
         plt.xlim(self.width)
         frame = plt.gca()
@@ -105,9 +110,9 @@ class Environment:
 
         self.needle.draw()
 
-        if save_image:
+        if save_image or self.record:
             frame.invert_xaxis()
-            plt.savefig('./out/{:03d}.png'.format(self.t))
+            plt.savefig('./out/{:03d}_{:03d}.png'.format(self.episode, self.t))
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
