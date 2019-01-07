@@ -23,12 +23,6 @@ def safe_load_line(name,handle):
 
     return l[1].split(',')
 
-def array_to_tuples(array):
-    return zip(array[:,0],array[:,1])
-
-# def check_intersect(a, b):
-#     return a.poly.intersection(b.poly).area > 0.
-
 moves = [-0.1, -0.05, 0.05, 0.1]
 move_array = [(x, y) for x in moves for y in moves]
 
