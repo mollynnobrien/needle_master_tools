@@ -147,11 +147,11 @@ class Environment:
             gate.load(handle)
             self.gates.append(gate)
 
-        if(self.ngates > 0):
+        if self.ngates > 0:
             self.next_gate = 0
             self.gates[self.next_gate].status = 'next_gate'
 
-        D = safe_load_line('Surfaces',handle)
+        D = safe_load_line('Surfaces', handle)
         self.nsurfaces = int(D[0])
         #print " - num surfaces=%d"%(self.nsurfaces)
 
@@ -172,7 +172,7 @@ class Environment:
             action = move_array[action]
 
         needle_in_tissue = self._needle_in_tissue()
-        self.needle.move(action, needle_in_tissue)
+        self.needle.move(action, needle_in_tissue, mode=self.mode)
         self._update_damage(action)
         running = self.check_status()
         self.t += 1
@@ -206,21 +206,21 @@ class Environment:
         y = self.needle.y
 
         """ have you passed a new gate? """
-        if(self.next_gate is not None):
+        if self.next_gate is not None:
             self.gates[self.next_gate].update([x, self.height - y])
             # if you passed or failed the gate
-            if(self.gates[self.next_gate].status != 'next_gate'):
+            if self.gates[self.next_gate].status != 'next_gate':
                 # increment to the next gate
-                self.next_gate = self.next_gate + 1
-                if(self.next_gate < self.ngates):
+                self.next_gate += 1
+                if self.next_gate < self.ngates:
                     # if we have this many gates, set gate status to be next
                     self.gates[self.next_gate].status = 'next_gate'
                 else:
                     self.next_gate = None
 
         """ are you in a valid game configuration? """
-        valid_x = x >= 0 and x <= self.width
-        valid_y = y >= 0 and y <= self.height
+        valid_x = x >= 0 and x < self.width
+        valid_y = y >= 0 and y < self.height
         valid_pos = valid_x and valid_y
         if not valid_pos:
             print("Invalid position")
@@ -358,7 +358,7 @@ class Gate:
     color2 = np.array([255., 50., 12.]) / 255
     color3 = np.array([255., 12., 150.]) / 255
 
-    def __init__(self,env_width,env_height):
+    def __init__(self, env_width, env_height):
         self.x = 0
         self.y = 0
         self.w = 0
@@ -590,7 +590,7 @@ class Needle:
         self._update_corners()
         self.poly = Polygon(self.corners)
 
-    def move(self, movement, needle_in_tissue):
+    def move(self, movement, needle_in_tissue, mode):
         """
             Given an input, move the needle. Update the position, orientation,
             and thread path in android game movement is specified by touch
@@ -621,9 +621,17 @@ class Needle:
 
         dx = dX * math.cos(self.w)
         dy = dX * math.sin(self.w)
+        oldx, oldy = self.x, self.y
         self.x += dx
         self.y += dy
-        print("wxy = ", self.w, self.x, self.y)
+
+        # In RL mode, don't allow to go out of bounds
+        if mode == mode_rl:
+            if self.x < 0 or self.x >= self.env_width:
+                self.x = oldx
+            if self.y < 0 or self.y >= self.env_height:
+                self.y = oldy
+
 
         self._update_corners()
         self.poly = Polygon(self.corners)
