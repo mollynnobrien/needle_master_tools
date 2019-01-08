@@ -41,7 +41,6 @@ class Environment:
 
     def __init__(self, filename=None, mode=mode_demo, device=torch.device('cpu')):
 
-        self.t = 0
         self.height   = 0
         self.width    = 0
         self.needle   = None
@@ -77,6 +76,7 @@ class Environment:
         self.damage = 0
         self.passed_gates = 0
         self.next_gate = None
+        self.old_score = 0. # deal with scoring -> reward signal
         self.episode += 1 # next episode
         self.record = (self.episode % self.record_interval == 0)
 
@@ -169,6 +169,7 @@ class Environment:
               * done
         """
         if self.mode == mode_rl:
+            print("action =", action)
             action = move_array[action]
 
         needle_in_tissue = self._needle_in_tissue()
@@ -176,7 +177,14 @@ class Environment:
         self._update_damage(action)
         running = self.check_status()
         self.t += 1
-        return (self.render(save_image=save_image), self.score(), not running)
+
+        # Get reward from score
+        score = self.score()
+        reward = score - self.old_score
+        self.old_score = score
+        #print("reward =", reward) # debug
+
+        return (self.render(save_image=save_image), reward, not running)
 
     def _needle_in_tissue(self):
         for s in self.surfaces:
@@ -632,6 +640,7 @@ class Needle:
             if self.y < 0 or self.y >= self.env_height:
                 self.y = oldy
 
+        print("move = ", movement, "wxy = ", self.w, self.x, self.y) # debug
 
         self._update_corners()
         self.poly = Polygon(self.corners)
