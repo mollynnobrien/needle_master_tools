@@ -23,12 +23,14 @@ def safe_load_line(name,handle):
 
     return l[1].split(',')
 
-moves = [-0.1, -0.05, 0.05, 0.1]
-move_array = [(x, y) for x in moves for y in moves]
+x_moves = [1, 3, 5, 10, 20]
+theta_moves = [-0.1, -0.05, 0.05, 0.1]
+move_array = [(x, 0.) for x in x_moves] + [(0., y) for y in theta_moves]
 
 # Different behaviors for demo/rl, as they have slightly different requirements
 mode_demo = 0
 mode_rl = 1
+two_pi = 2 * math.pi
 
 class Environment:
     metadata = {'render.modes': ['rgb_array']}
@@ -546,7 +548,7 @@ class Needle:
         self._draw_needle()
         self._draw_thread()
 
-    def _compute_corners(self):
+    def _update_corners(self):
         """
             given x,y,w compute needle corners and save
         """
@@ -585,7 +587,7 @@ class Needle:
             Load the current needle position
         """
         # compute the corners for the current position
-        self._compute_corners()
+        self._update_corners()
         self.poly = Polygon(self.corners)
 
     def move(self, movement, needle_in_tissue):
@@ -608,17 +610,23 @@ class Needle:
 
         if needle_in_tissue:
             dw = 0.5 * dw
-            if(abs(dw)> 0.01):
+            if abs(dw) > 0.01:
                 dw = 0.02 * np.sign(dw)
 
-        self.w = self.w + dw
-        self.x = self.x + dX * math.cos(self.w)
-        self.y = self.y - dX * math.sin(self.w)
+        self.w += dw
+        if self.w < 0.:
+            self.w += two_pi
+        if self.w > two_pi:
+            self.w -= two_pi
 
-        self._compute_corners()
+        dx = dX * math.cos(self.w)
+        dy = dX * math.sin(self.w)
+        self.x += dx
+        self.y += dy
+        print("wxy = ", self.w, self.x, self.y)
+
+        self._update_corners()
         self.poly = Polygon(self.corners)
         self.thread_points.append(np.array([self.x, self.y]))
-        dx = self.thread_points[-1][0] - self.thread_points[-2][0]
-        dy = self.thread_points[-1][1] - self.thread_points[-2][1]
         dlength = math.sqrt(dx * dx + dy * dy)
         self.path_length += dlength
