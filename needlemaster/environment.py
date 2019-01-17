@@ -176,10 +176,10 @@ class Environment:
 
         needle_surface = self._surface_with_needle()
         self.needle.move(action, needle_surface, mode=self.mode)
-        damage = self._get_damage(action, needle_surface)
+        new_damage = self._get_new_damage(action, needle_surface)
         gate_status = self._update_and_check_gate_status()
         running = self._can_keep_running()
-        self.damage += damage
+        self.damage += new_damage
         self.t += 1
 
         if self.mode == mode_rl:
@@ -201,9 +201,9 @@ class Environment:
         s_flag = s.poly.contains(Point(needle_tip))
         return s_flag
 
-    def _get_damage(self, movement, surface):
+    def _get_new_damage(self, movement, surface):
         if surface is not None:
-            return surface.update_damage_and_color(movement)
+            return surface.get_update_damage_and_color(movement)
         else:
             return 0.
 
@@ -538,14 +538,16 @@ class Surface:
 
         self.poly = Polygon(self.corners)
 
-    def update_damage_and_color(self, movement):
+    def get_update_damage_and_color(self, movement):
         dw = movement[1]
         if abs(dw) > 0.02:
-            self.damage += (abs(dw)/2.0 - 0.01) * 100
+            new_damage = (abs(dw)/2.0 - 0.01) * 100
+            self.damage += new_damage
             if self.damage > 100:
                 self.damage = 100
             self._update_color()
-        return self.damage
+            return new_damage
+        return 0.
 
     def _update_color(self):
         alpha = self.damage / 100.
