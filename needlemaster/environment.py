@@ -88,7 +88,11 @@ class Environment:
 
 
     def render(self, mode='rgb_array', save_image=False):
-        fig = plt.figure(figsize=(2.24,2.24), dpi=100) # 224x224
+        # For RL, we want small square images
+        if self.mode == mode_demo:
+            fig = plt.figure()
+        else:
+            fig = plt.figure(figsize=(2.24,2.24), dpi=100) # 224x224
         plt.ylim(self.height)
         plt.xlim(self.width)
         frame = plt.gca()
