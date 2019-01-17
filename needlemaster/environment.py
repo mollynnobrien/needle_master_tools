@@ -650,7 +650,7 @@ class Needle:
             self.w -= two_pi
 
         dx = dX * math.cos(self.w)
-        dy = dX * math.sin(self.w)
+        dy = -dX * math.sin(self.w)
         oldx, oldy = self.x, self.y
         self.x += dx
         self.y += dy
