@@ -20,12 +20,11 @@ def playback(env_path, demo_path):
     state       = demo.s;
 
     """ ..................................... """
-    running = True
+    done = False
     environment.render(save_image=True)
 
-    while(running):
-        environment.step(actions[environment.t,0:2], save_image=True)
-        running = environment.check_status()
+    while not done:
+        _, _, done = environment.step(actions[environment.t,0:2], save_image=True)
 
     print("________________________")
     print(" Level " + str(demo.env))
