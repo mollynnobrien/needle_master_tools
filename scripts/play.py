@@ -24,7 +24,7 @@ def playback(env_path, demo_path):
     environment.render(save_image=True)
 
     while(running):
-        environment.step(actions[environment.t,0:2], save_image=True)
+        frame = environment.step(actions[environment.t,0:2], save_image=True)
         running = environment.check_status()
 
     print("________________________")

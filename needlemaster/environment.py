@@ -106,6 +106,7 @@ class Environment:
         self.needle.draw()
 
         if save_image:
+            woah()
             frame.invert_xaxis()
             plt.savefig('./out/{:03d}.png'.format(self.t))
 
