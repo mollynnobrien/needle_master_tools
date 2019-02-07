@@ -87,7 +87,7 @@ class Environment:
         return self.render(save_image=False)
 
 
-    def render(self, mode='rgb_array', save_image=False):
+    def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
         # For RL, we want small square images
         if self.mode == mode_demo:
             fig = plt.figure()
@@ -110,7 +110,7 @@ class Environment:
 
         if save_image or self.record:
             frame.invert_xaxis()
-            plt.savefig('./out/{:03d}_{:03d}.png'.format(self.episode, self.t))
+            plt.savefig(save_path + '{:03d}.png'.format(self.t))
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
@@ -162,7 +162,7 @@ class Environment:
             s.load(handle)
             self.surfaces.append(s)
 
-    def step(self, action, save_image=False):
+    def step(self, action, save_image=False, save_path='Out/'):
         """
             Move one time step forward
             Returns:
@@ -188,7 +188,7 @@ class Environment:
             reward = self.score()
         #print("reward =", reward) # debug
 
-        return (self.render(save_image=save_image), reward, not running)
+        return (self.render(save_image=save_image, save_path=save_path), reward, not running)
 
     def _surface_with_needle(self):
         for s in self.surfaces:
@@ -668,7 +668,7 @@ class Needle:
             if self.y < 0 or self.y >= self.env_height:
                 self.y = oldy
 
-        print("move = ", movement, "wxy = ", self.w, self.x, self.y) # debug
+        #print("move = ", movement, "wxy = ", self.w, self.x, self.y) # debug
 
         self._update_corners()
         self.poly = Polygon(self.corners)
