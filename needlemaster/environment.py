@@ -25,7 +25,8 @@ def safe_load_line(name,handle):
 
 x_moves = [1, 3, 5, 10, 20]
 theta_moves = [-0.1, -0.05, 0.05, 0.1]
-move_array = [(x, 0.) for x in x_moves] + [(0., y) for y in theta_moves]
+# Force a little movement when turning to force rewards
+move_array = [(x, 0.) for x in x_moves] + [(0.2, y) for y in theta_moves]
 
 # Different behaviors for demo/rl, as they have slightly different requirements
 mode_demo = 0
@@ -162,7 +163,7 @@ class Environment:
             s.load(handle)
             self.surfaces.append(s)
 
-    def step(self, action, save_image=False, save_path='Out/'):
+    def step(self, action, save_image=False, save_path='./out/'):
         """
             Move one time step forward
             Returns:
@@ -171,7 +172,7 @@ class Environment:
               * done
         """
         if self.mode == mode_rl:
-            print("action =", action)
+            #print("action =", action)
             action = move_array[action]
 
         needle_surface = self._surface_with_needle()
@@ -183,12 +184,13 @@ class Environment:
         self.t += 1
 
         if self.mode == mode_rl:
-            reward = self.get_reward(gate_status, damage)
+            reward = self.get_reward(gate_status, new_damage)
         else:
             reward = self.score()
-        #print("reward =", reward) # debug
+        print("reward =", reward) # debug
 
-        return (self.render(save_image=save_image, save_path=save_path), reward, not running)
+        return (self.render(save_image=save_image, save_path=save_path),
+                reward, not running)
 
     def _surface_with_needle(self):
         for s in self.surfaces:
@@ -662,6 +664,7 @@ class Needle:
         self.y += dy
 
         # In RL mode, don't allow to go out of bounds
+        # TODO: do we want this? Negative reward is better
         if mode == mode_rl:
             if self.x < 0 or self.x >= self.env_width:
                 self.x = oldx
