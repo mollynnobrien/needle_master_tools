@@ -29,10 +29,8 @@ def playback(env_path, demo_path, im_path):
         
     environment.render(save_image=True)
 
-    woah() 
-    
     if(len(actions) > 0): 
-        while not done:
+        while(not done and environment.t < len(actions)):
             _, _, done = environment.step(actions[environment.t,0:2], save_image=True, save_path=out_path)
 
         #print("________________________")

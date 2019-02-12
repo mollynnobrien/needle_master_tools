@@ -23,7 +23,7 @@ demonstration_dir  = '/home/molly/workspace/Surgical_Automation/experiments/need
 images_path        = '/home/molly/workspace/Surgical_Automation/experiments/needle_master_tools/images/'
 
 demo_list = os.listdir(demonstration_dir)
-for i in range(34, len(demo_list)):
+for i in range(54, len(demo_list)):
     demo = demo_list[i]
     print("*********************************")
     print(str(i) + "\t Rendering " + demo)
