@@ -8,7 +8,7 @@ def playback(env_path, demo_path, im_path):
     """
             Molly 11/30/2018
 
-            read in an environment and demonstration and "hallucinate" the
+            read in an environment and demonstration and render the
             screen images
 
             Args:
