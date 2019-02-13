@@ -78,6 +78,7 @@ class Environment:
         self.old_score = 0. # deal with scoring -> reward signal
         self.episode += 1 # next episode
         self.record = (self.episode % self.record_interval == 0)
+        self.total_reward = 0.
 
         if self.filename is not None:
             with open(self.filename, 'r') as file:
@@ -100,6 +101,7 @@ class Environment:
         frame.set_facecolor(self.background_color)
         frame.axes.get_xaxis().set_ticks([])
         frame.axes.get_yaxis().set_ticks([])
+        plt.text(200, 100, self.total_reward)
 
         for surface in self.surfaces:
             surface.draw()
@@ -188,6 +190,7 @@ class Environment:
         else:
             reward = self.score()
         print("reward =", reward) # debug
+        self.total_reward += reward
 
         return (self.render(save_image=save_image, save_path=save_path),
                 reward, not running)
