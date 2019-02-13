@@ -116,8 +116,11 @@ class Environment:
         self.needle.draw()
 
         if save_image or self.record:
+            full_path = os.path.join(save_path, str(self.episode))
+            if not os.path.exists(full_path):
+                os.mkdir(full_path)
             frame.invert_xaxis()
-            plt.savefig(save_path + '{:03d}.png'.format(self.t))
+            plt.savefig(os.path.join(full_path, '{:03d}.png'.format(self.t)))
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
