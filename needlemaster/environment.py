@@ -432,17 +432,17 @@ class Gate:
             see if you passed or failed the gate
         '''
         p = Point(needle_pos)
-        if self.status == NEXT_GATE and self.box.contains(p):
-            self.status = PASSED_GATE
-            self.c1 = self.color_passed
-            self.c2 = self.color_passed
-            self.c3 = self.color_passed
-        elif self.status != PASSED_GATE and \
+        if self.status != PASSED_GATE and \
             (self.top_box.contains(p) or self.bottom_box.contains(p)):
             self.status = FAILED_GATE
             self.c1 = self.color_failed
             self.c2 = self.color_failed
             self.c3 = self.color_failed
+        elif self.status == NEXT_GATE and self.box.contains(p):
+            self.status = PASSED_GATE
+            self.c1 = self.color_passed
+            self.c2 = self.color_passed
+            self.c3 = self.color_passed
         return self.status
 
     def draw(self):
