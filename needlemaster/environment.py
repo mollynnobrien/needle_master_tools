@@ -23,10 +23,14 @@ def safe_load_line(name,handle):
 
     return l[1].split(',')
 
-x_moves = [1, 3, 5, 10, 20]
+'''
+x_moves = [3, 5, 10, 20]
 theta_moves = [-0.1, -0.05, 0.05, 0.1]
 # Force a little movement when turning to force rewards
-move_array = [(x, 0.) for x in x_moves] + [(0.2, y) for y in theta_moves]
+move_array = [(x, 0.) for x in x_moves] + [(1, y) for y in theta_moves]
+'''
+theta_moves = [-0.3, -0.1, 0, 0.1, 0.3]
+move_array = [(-15, t) for t in theta_moves]
 
 # Different behaviors for demo/rl, as they have slightly different requirements
 mode_demo = 0
