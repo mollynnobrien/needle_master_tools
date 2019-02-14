@@ -55,6 +55,13 @@ class Environment:
         self.mode = mode
         self.device = device
         self.episode = 0
+        self.is_init = False # One-time stuff to do at reset
+
+        # Create screen for scaling down
+        if self.mode == mode_demo:
+            self.scaled_screen = None # For scaling down
+        else:
+            self.scaled_screen = pygame.Surface((224, 224))
 
         pygame.font.init()
 
@@ -62,6 +69,9 @@ class Environment:
 
     def train(self):
         ''' Dummy method '''
+        pass
+
+    def close(self):
         pass
 
     def action_space(self):
@@ -91,19 +101,17 @@ class Environment:
 
         self.needle = Needle(self.width, self.height)
 
-        # Don't actually render to screen
-        #self.screen = pygame.display.set_mode([self.width, self.heigh])
-        # TODO: preserve Surface object
-        self.screen = pygame.Surface((self.width, self.height))
+        # Assume the width and height won't change
+        # Save the Surface creation
+        if not self.is_init:
+            self.is_init = True
+            self.screen = pygame.Surface((self.width, self.height))
 
         return self.render(save_image=False)
 
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
-        # For RL, we want small square images
-        final_size = [224, 224]
-        if self.mode == mode_demo:
-            final_size = None
+
         self.screen.fill(self.background_color)
 
         for surface in self.surfaces:
@@ -118,10 +126,11 @@ class Environment:
 
         # Scale if needed
         surface = self.screen
-        if final_size is not None:
+        if self.scaled_screen is not None:
             # Precreate surface with final dim and use ~DestSurface
             # Also consider smoothscale
-            surface = pygame.transform.scale(self.screen, final_size)
+            pygame.transform.scale(self.screen, [224, 224], self.scaled_screen)
+            surface = self.scaled_screen
 
         if save_image or self.record:
             # draw text
@@ -218,9 +227,7 @@ class Environment:
         return None
 
     def _needle_in_surface(self, s):
-        needle_tip = np.array([self.needle.x, self.height - self.needle.y])
-        s_flag = s.poly.contains(Point(needle_tip))
-        return s_flag
+        return s.poly.contains(self.needle.tip)
 
     def _get_new_damage(self, movement, surface):
         if surface is not None:
@@ -230,10 +237,11 @@ class Environment:
 
     def _update_and_check_gate_status(self):
         """ have we passed a new gate? """
-        x, y = self.needle.x, self.needle.y
         status = NOP_GATE
         if self.next_gate is not None:
-            status = self.gates[self.next_gate].update_status([x, self.height - y])
+            status = \
+                    self.gates[self.next_gate] \
+                    .update_status(self.needle.tip)
             if status == FAILED_GATE or status == PASSED_GATE:
                 # increment to the next gate
                 self.next_gate += 1
@@ -435,14 +443,10 @@ class Gate:
         self.env_width = env_width
         self.env_height = env_height
 
-    def contains(self, poly, traj):
-        return [poly.contains(Point(x)) for x in traj]
-
-    def update_status(self, needle_pos):
+    def update_status(self, p):
         ''' take in current position,
             see if you passed or failed the gate
         '''
-        p = Point(needle_pos)
         if self.status != PASSED_GATE and \
             (self.top_box.contains(p) or self.bottom_box.contains(p)):
             self.status = FAILED_GATE
@@ -593,6 +597,7 @@ class Needle:
 
         # Save adjusted thread points since we don't use them for anything
         self.thread_points = [(self.x, env_height - self.y)]
+        self.tip = Point(np.array([self.x, self.env_height - self.y]))
         self.path_length = 0.
 
         self.current_surface = None
@@ -616,14 +621,14 @@ class Needle:
 
         length = self.length_const * self.scale
 
-        top_x = x - (0.01 * self.scale) * math.cos(top_w) + \
-                (length * math.cos(w))
-        top_y = y - (0.01 * self.scale) * math.sin(top_w) + \
-                (length * math.sin(w))
-        bot_x = x - (0.01 * self.scale) * math.cos(bot_w) + \
-                (length * math.cos(w))
-        bot_y = y - (0.01 * self.scale) * math.sin(bot_w) + \
-                (length * math.sin(w))
+        lcosw = length * math.cos(w)
+        lsinw = length * math.sin(w)
+        scale = 0.01 * self.scale
+
+        top_x = x - scale * math.cos(top_w) + lcosw
+        top_y = y - scale * math.sin(top_w) + lsinw
+        bot_x = x - scale * math.cos(bot_w) + lcosw
+        bot_y = y - scale * math.sin(bot_w) + lsinw
 
         self.corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
 
@@ -688,8 +693,8 @@ class Needle:
 
         #print("move = ", movement, "wxy = ", self.w, self.x, self.y) # debug
 
+        self.tip = Point(np.array([self.x, self.env_height - self.y]))
         self._update_corners()
-        self.poly = Polygon(self.corners)
 
         if self.x != oldx or self.y != oldy:
             self.thread_points.append((self.x, self.env_height - self.y))
