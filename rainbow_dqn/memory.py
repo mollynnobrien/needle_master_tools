@@ -63,7 +63,7 @@ class SegmentTree():
     return self.sum_tree[0]
 
 class ReplayMemory():
-  def __init__(self, args, capacity):
+  def __init__(self, args, capacity, default_img):
     self.device = args.device
     self.capacity = capacity
     self.history = args.history_length
@@ -72,16 +72,23 @@ class ReplayMemory():
     self.priority_weight = args.priority_weight  # Initial importance sampling weight β, annealed to 1 over course of training
     self.priority_exponent = args.priority_exponent
     self.t = 0  # Internal episode timestep counter
-    self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
+    # Store transitions in a wrap-around cyclic buffer within a sum tree
+    # for querying priorities
+    self.transitions = SegmentTree(capacity)
+    # For placing into next_state of terminal actions
+    def_img = default_img[-1].to(dtype=torch.uint8, device=torch.device('cpu'))
+    self.blank_trans = Transition(0, def_img, None, 0, False)
 
   # Adds state and action at time t, reward and terminal at time t + 1
   def append(self, state, action, reward, terminal):
     # Only store last frame and discretise to save memory
-    # TODO: is this needed?
-    # XXX: try to remove last frame thing. Doesn't make sense for us
-    # state = state[-1]
-    state = state.mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))  
-    self.transitions.append(Transition(self.t, state, action, reward, not terminal), self.transitions.max)  # Store new transition with maximum priority
+    # (We potentially have all of history anyway)
+    state = state[-1]
+    #state = state.mul(255)
+    state = state.to(dtype=torch.uint8, device=torch.device('cpu'))
+    self.transitions.append(
+        Transition(self.t, state, action, reward, not terminal),
+        self.transitions.max)  # Store new transition with maximum priority
     self.t = 0 if terminal else self.t + 1  # Start new episodes with t = 0
 
   # Returns a transition with blank states where appropriate
@@ -90,14 +97,14 @@ class ReplayMemory():
     transition[self.history - 1] = self.transitions.get(idx)
     for t in range(self.history - 2, -1, -1):  # e.g. 2 1 0
       if transition[t + 1].timestep == 0:
-        transition[t] = blank_trans  # If future frame has timestep 0
+        transition[t] = self.blank_trans  # If future frame has timestep 0
       else:
         transition[t] = self.transitions.get(idx - self.history + 1 + t)
     for t in range(self.history, self.history + self.n):  # e.g. 4 5 6
       if transition[t - 1].nonterminal:
         transition[t] = self.transitions.get(idx - self.history + 1 + t)
       else:
-        transition[t] = blank_trans  # If prev (next) frame is terminal
+        transition[t] = self.blank_trans  # If prev (next) frame is terminal
     return transition
 
   # Returns a valid sample from a segment
@@ -157,7 +164,7 @@ class ReplayMemory():
     prev_timestep = self.transitions.data[self.current_idx].timestep
     for t in reversed(range(self.history - 1)):
       if prev_timestep == 0:
-        state_stack[t] = blank_trans.state  # If future frame has timestep 0
+        state_stack[t] = self.blank_trans.state  # If future frame has timestep 0
       else:
         state_stack[t] = self.transitions.data[self.current_idx + t - self.history + 1].state
         prev_timestep -= 1
