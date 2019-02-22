@@ -215,8 +215,8 @@ class Environment:
             reward = self.get_reward(gate_status, new_damage)
         else:
             reward = self.score()
-        print("reward =", reward) # debug
         self.total_reward += reward
+        #print("reward =", reward) # debug
 
         frame = self.render(save_image=save_image, save_path=save_path)
 
