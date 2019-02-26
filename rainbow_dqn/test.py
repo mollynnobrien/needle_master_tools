@@ -5,7 +5,7 @@ from plotly.graph_objs.scatter import Line
 import torch
 
 #from .env import Env
-from needlemaster.environment import Environment
+from needlemaster.environment import Environment, mode_rl
 
 
 # Globals
