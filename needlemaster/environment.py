@@ -42,7 +42,7 @@ class Environment:
 
     record_interval = 10 # how often to record an episode
 
-    def __init__(self, filename=None, mode=mode_demo, device=torch.device('cpu')):
+    def __init__(self, filename=None, mode=mode_demo):
 
         self.height   = 0
         self.width    = 0
@@ -53,7 +53,6 @@ class Environment:
         if not os.path.exists('./out'):
             os.mkdir('./out')
         self.mode = mode
-        self.device = device
         self.episode = 0
         self.is_init = False # One-time stuff to do at reset
 
@@ -107,7 +106,8 @@ class Environment:
             self.is_init = True
             self.screen = pygame.Surface((self.width, self.height))
 
-        return self.render(save_image=False)
+        # Return 1 frame of history
+        return self.render(save_image=False).unsqueeze(0)
 
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
@@ -141,16 +141,16 @@ class Environment:
             full_path = os.path.join(save_path, str(self.episode))
             if not os.path.exists(full_path):
                 os.mkdir(full_path)
-            #frame.invert_xaxis() #XXX: needed?
             save_file = os.path.join(full_path, '{:03d}.png'.format(self.t))
             pygame.image.save(surface, save_file)
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
             arr = pygame.surfarray.array3d(surface)
-            arr = arr.astype(np.float32)
-            arr /= 255.
-            frame = torch.from_numpy(arr).permute(2,0,1).to(device=self.device)
+            # not necessary to convert to float since we store as uint8
+            #arr = arr.astype(np.float32)
+            #arr /= 255.
+            frame = torch.from_numpy(arr).permute(2,0,1)
             return frame
 
     @staticmethod
@@ -214,11 +214,13 @@ class Environment:
             reward = self.get_reward(gate_status, new_damage)
         else:
             reward = self.score()
-        print("reward =", reward) # debug
         self.total_reward += reward
+        #print("reward =", reward) # debug
 
-        return (self.render(save_image=save_image, save_path=save_path),
-                reward, not running)
+        frame = self.render(save_image=save_image, save_path=save_path)
+
+        # Unsqueeze to have 1 frame of 'history'
+        return (frame.unsqueeze(0), reward, not running)
 
     def _surface_with_needle(self):
         for s in self.surfaces:
