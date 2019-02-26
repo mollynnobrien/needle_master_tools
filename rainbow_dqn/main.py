@@ -71,7 +71,7 @@ def log(s):
 
 
 # Environment
-env = Environment(filename=args.filename, mode=mode_rl, device=args.device)
+env = Environment(filename=args.filename, mode=mode_rl)
 env.train()
 action_space = env.action_space()
 

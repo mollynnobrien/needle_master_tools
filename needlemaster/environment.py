@@ -42,7 +42,7 @@ class Environment:
 
     record_interval = 10 # how often to record an episode
 
-    def __init__(self, filename=None, mode=mode_demo, device=torch.device('cpu')):
+    def __init__(self, filename=None, mode=mode_demo):
 
         self.height   = 0
         self.width    = 0
@@ -53,7 +53,6 @@ class Environment:
         if not os.path.exists('./out'):
             os.mkdir('./out')
         self.mode = mode
-        self.device = device
         self.episode = 0
         self.is_init = False # One-time stuff to do at reset
 
