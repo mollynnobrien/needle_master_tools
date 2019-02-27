@@ -73,6 +73,9 @@ class Environment:
     def close(self):
         pass
 
+    def eval(self):
+        pass
+
     def action_space(self):
         ''' Return the action space size of the environment '''
         return len(move_array)
