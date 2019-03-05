@@ -19,20 +19,19 @@ def control(env_path, save_path):
                 save_path: (OPTIONAL) path/to/save/demo/file. If save_path is empty then images/demonstration won't be saved
     """
 
-    environment        = nm.Environment(env_path)
+    environment        = nm.Environment(env_path, save_demo=save_path)
     action_constraints = [10, np.pi/10]           # constraints on allowable motion
     parameters         = [0.1,0.0009]             # proportional control parameters --- these have been hand-tuned
     save_images        = (save_path is not None)
 
     pid = PIDcontroller(params=parameters, bounds=action_constraints)
     """ ..................................... """
-    running = True
+    done = False
     environment.render(save_image=save_images)
 
-    while(running):
+    while(not done):
         action  = pid.step([environment.needle.x, environment.needle.y, environment.needle.w], [environment.gates[environment.next_gate]])
-        frame   = environment.step(action, 'play',save_image=save_image, save_demo=save_path)
-        running = environment.check_status()
+        _, _, done   = environment.step(action, 'play',save_image=save_image)
 
     print("________________________")
     environment.score(True)

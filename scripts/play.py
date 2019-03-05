@@ -25,21 +25,16 @@ def playback(env_path, demo_path, im_path):
     demo_name = demo_path.split('/')[-1].split('.')[0]
     out_path = im_path + demo_name + '/'
     if(not os.path.exists(out_path)):
-       os.mkdir(out_path)    
-        
+       os.mkdir(out_path)
+
     environment.render(save_image=True)
 
-    if(len(actions) > 0): 
+    if(len(actions) > 0):
         while(not done and environment.t < len(actions)):
             _, _, done = environment.step(actions[environment.t,0:2], save_image=True, save_path=out_path)
-
-        #print("________________________")
-        #print(" Level " + str(demo.env))
-        #environment.score(True)
-        #print("________________________")
         """ ..................................... """
-        
-    else: 
+
+    else:
         print("Warning: empty demonstration")
 
 
