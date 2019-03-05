@@ -1,9 +1,10 @@
 import os
+import csv
 import sys
 import numpy as np
-from context import needlemaster as nm
-import csv
+from controller import *
 from pdb import set_trace as woah
+from context import needlemaster as nm
 
 def control(env_path, save_path):
     """
@@ -19,9 +20,9 @@ def control(env_path, save_path):
                 save_path: (OPTIONAL) path/to/save/demo/file. If save_path is empty then images/demonstration won't be saved
     """
 
-    environment        = nm.Environment(env_path, save_demo=save_path)
+    environment        = nm.Environment(env_path, save_path=save_path)
     action_constraints = [10, np.pi/10]           # constraints on allowable motion
-    parameters         = [0.1,0.0009]             # proportional control parameters --- these have been hand-tuned
+    parameters         = [0.1, 0.1]#[0.1,0.0009]             # proportional control parameters --- these have been hand-tuned
     save_images        = (save_path is not None)
 
     pid = PIDcontroller(params=parameters, bounds=action_constraints)
@@ -30,8 +31,13 @@ def control(env_path, save_path):
     environment.render(save_image=save_images)
 
     while(not done):
-        action  = pid.step([environment.needle.x, environment.needle.y, environment.needle.w], [environment.gates[environment.next_gate]])
-        _, _, done   = environment.step(action, 'play',save_image=save_image)
+        if(environment.next_gate is not None):
+            next_gate = environment.gates[environment.next_gate]
+        else:
+            next_gate = None
+
+        action  = pid.step([environment.needle.x, environment.needle.y, environment.needle.w], next_gate)
+        _, _, done   = environment.step(action, 'play')#,save_image=save_images)
 
     print("________________________")
     environment.score(True)
