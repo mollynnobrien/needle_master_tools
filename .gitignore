@@ -2,3 +2,7 @@
 /dist/
 /*.egg-info
 *.png
+*.orig
+.ipynb_checkpoints/
+*.gpg
+/build/
