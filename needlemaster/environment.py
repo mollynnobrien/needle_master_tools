@@ -19,6 +19,8 @@ GREEN = (0, 255, 0)
 REWARD_DISTANCE = 0
 REWARD_ANGLE = 1
 
+two_pi = math.pi * 2
+
 def safe_load_line(name,handle):
     l = handle.readline()[:-1].split(': ')
     assert(l[0] == name)
@@ -37,7 +39,6 @@ move_array = [(-15, t) for t in theta_moves]
 # Different behaviors for demo/rl, as they have slightly different requirements
 mode_demo = 0
 mode_rl = 1
-two_pi = 2 * math.pi
 
 class Environment:
     metadata = {'render.modes': ['rgb_array']}
@@ -128,6 +129,8 @@ class Environment:
             self.is_init = True
             self.screen = pygame.Surface((self.width, self.height))
 
+        self.angle_to_gate = 0.
+
         # Return 1 frame of history
         return self.render(save_image=False).unsqueeze(0)
 
@@ -156,8 +159,19 @@ class Environment:
 
         if save_image or self.record:
             # draw text
-            myfont = pygame.font.SysFont('Arial', 20)
-            reward_s = "TR:{:.5f}, R:{:.5f}".format(self.total_reward, self.last_reward)
+            myfont = pygame.font.SysFont('Arial', 12)
+            debug = False
+            if debug:
+                if self.next_gate is not None:
+                    reward_s = "w:{:.2f}, a:{:.2f}, g:({:.0f}, {:.0f}), n:({:.0f}, {:.0f})".format(self.needle.w, self.angle_to_gate,
+                        self.gates[self.next_gate].x,
+                        self.gates[self.next_gate].y,
+                        self.needle.x,
+                        self.needle.y)
+                else:
+                    reward_s = ""
+            else:
+                reward_s = "TR:{:.5f}, R:{:.5f}".format(self.total_reward, self.last_reward)
             txtSurface = myfont.render(reward_s, False, (0,0,0))
             surface.blit(txtSurface, (10,10))
 
@@ -431,15 +445,18 @@ class Environment:
         if self.next_gate is not None:
             gate_x = self.gates[self.next_gate].x
             gate_y = self.gates[self.next_gate].y
-            dist_x = self.needle.x - gate_x
-            dist_y = self.needle.y - gate_y
+            dist_x = gate_x - self.needle.x
+            dist_y = gate_y - self.needle.y
             if self.reward_type == REWARD_DISTANCE:
                 dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
                 reward -= dist / 100000.
                 #if dist >= 1.:
                 #    reward += 1. / (dist * 1000.)
             elif self.reward_type == REWARD_ANGLE:
-                angle_to_gate = math.atan2(dist_y, dist_x)
+                angle_to_gate = math.pi - math.atan2(dist_y, dist_x)
+                if angle_to_gate < 0.:
+                    angle_to_gate += two_pi
+                self.angle_to_gate = angle_to_gate
                 reward = math.cos(self.needle.w - angle_to_gate)
                 reward /= 10000.
 
@@ -619,13 +636,14 @@ class Surface:
 
 class Needle:
 
+    # Assume w=0 points to the negative x-axis
+
     def __init__(self, env_width, env_height):
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
-        self.w = math.pi
+        self.w = math.pi             # face right
         self.corners = None
 
-        self.max_dXY      = 75
         self.length_const = 0.08
         self.scale        = np.sqrt(env_width**2 + env_height**2)
         self.is_moving    = False
@@ -641,9 +659,8 @@ class Needle:
         self.tip = Point(np.array([self.x, self.env_height - self.y]))
         self.path_length = 0.
 
-        self.current_surface = None
+        self._update_corners()
 
-        self.load()
 
     def draw(self, surface):
         self._draw_thread(surface)
@@ -657,14 +674,15 @@ class Needle:
         x = self.x
         y = self.env_height - self.y
 
-        top_w = w - math.pi/2
-        bot_w = w + math.pi/2
-
         length = self.length_const * self.scale
 
         lcosw = length * math.cos(w)
         lsinw = length * math.sin(w)
         scale = 0.01 * self.scale
+
+        # Back of the needle
+        top_w = w - math.pi/2
+        bot_w = w + math.pi/2
 
         top_x = x - scale * math.cos(top_w) + lcosw
         top_y = y - scale * math.sin(top_w) + lsinw
@@ -681,14 +699,6 @@ class Needle:
             # TODO: consider aalines
             pygame.draw.lines(surface, self.thread_color, False, self.thread_points, 10)
 
-    def load(self):
-        """
-            Load the current needle position
-        """
-        # compute the corners for the current position
-        self._update_corners()
-        self.poly = Polygon(self.corners)
-
     def move(self, movement, surface, mode):
         """
             Given an input, move the needle. Update the position, orientation,
@@ -696,17 +706,11 @@ class Needle:
             points. last_x, last_y specify the x,y in the previous time step
             and x,y specify the current touch point
 
-            dx = x - last_x
-            dy = y - last_y
-            w  = atan2(dy/dx)
-
-            right now we assume you take in dx and dy
-            (since we can directly pass that)
-
         """
         dX = movement[0]
         dw = movement[1]
 
+        # Movement through a surface is more limited
         if surface is not None:
             dw = 0.5 * dw
             if abs(dw) > 0.01:
@@ -715,11 +719,11 @@ class Needle:
         self.w += dw
         if self.w < 0.:
             self.w += two_pi
-        if self.w > two_pi:
+        elif self.w >= two_pi:
             self.w -= two_pi
 
         dx = dX * math.cos(self.w)
-        dy = -dX * math.sin(self.w)
+        dy = -dX * math.sin(self.w) # y is reversed
         oldx, oldy = self.x, self.y
         self.x += dx
         self.y += dy
