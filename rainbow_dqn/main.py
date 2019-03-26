@@ -27,7 +27,7 @@ parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discreti
 parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
 parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
-parser.add_argument('--memory-capacity', type=int, default=int(1e6), metavar='CAPACITY', help='Experience replay memory capacity')
+parser.add_argument('--memory-capacity', type=int, default=50000, metavar='CAPACITY', help='Experience replay memory capacity')
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
 parser.add_argument('--priority-exponent', type=float, default=0.5, metavar='ω', help='Prioritised experience replay exponent (originally denoted α)')
 parser.add_argument('--priority-weight', type=float, default=0.4, metavar='β', help='Initial prioritised experience replay importance sampling weight')
