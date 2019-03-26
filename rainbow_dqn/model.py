@@ -51,13 +51,19 @@ class DQN(nn.Module):
     self.action_space = action_space
     self.dim = 224
     self.first_size = args.history_length * args.channels
-    self.initial_size = int(16 * self.dim * self.dim / 4)
-    self.reduced_size = int(self.initial_size / (2 * 2 * 2))
+    self.initial_size = int(16 * self.dim * self.dim / (2 * 2))
+    self.reduced_size = int(self.initial_size / (2 ** 5))
+    print("initial_size = ", self.initial_size)
+    print("reduced_size =", self.reduced_size)
 
+    # initial size: 16 * dim * dim / (2 * 2)
     self.conv1 = nn.Conv2d(self.first_size, 16, 5, stride=2, padding=2)
+    # every other convolution halves
     self.conv2 = nn.Conv2d(16, 32, 5, stride=2, padding=2)
     self.conv3 = nn.Conv2d(32, 64, 5, stride=2, padding=2)
     self.conv4 = nn.Conv2d(64, 128, 3, stride=2, padding=1)
+    self.conv5 = nn.Conv2d(128, 256, 3, stride=2, padding=1) # 7*7
+    self.conv6 = nn.Conv2d(256, 128, 3, stride=1, padding=1)
     self.fc_h_v = NoisyLinear(self.reduced_size, args.hidden_size, std_init=args.noisy_std)
     self.fc_h_a = NoisyLinear(self.reduced_size, args.hidden_size, std_init=args.noisy_std)
     self.fc_z_v = NoisyLinear(args.hidden_size, self.atoms, std_init=args.noisy_std)
@@ -65,10 +71,19 @@ class DQN(nn.Module):
 
   def forward(self, x, log=False):
     x = x.view(-1, self.first_size, 224, 224)
+    #print(x.shape)
     x = F.relu(self.conv1(x))
+    #print(x.shape)
     x = F.relu(self.conv2(x))
+    #print(x.shape)
     x = F.relu(self.conv3(x))
+    #print(x.shape)
     x = F.relu(self.conv4(x))
+    #print(x.shape)
+    x = F.relu(self.conv5(x))
+    #print(x.shape)
+    x = F.relu(self.conv6(x))
+    #print(x.shape)
     x = x.view(-1, self.reduced_size)
     v = self.fc_z_v(F.relu(self.fc_h_v(x)))  # Value stream
     a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream

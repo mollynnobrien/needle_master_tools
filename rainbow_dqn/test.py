@@ -27,7 +27,8 @@ def test(args, T, dqn, val_mem, evaluate=False):
       if done:
         state, reward_sum, done = env.reset(), 0, False
 
-      action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+      gpu_state = state.to(dtype=torch.float32, device=args.device).div_(255)
+      action = dqn.act_e_greedy(gpu_state)  # Choose an action ε-greedily
       state, reward, done = env.step(action)  # Step
       reward_sum += reward
       if args.render:

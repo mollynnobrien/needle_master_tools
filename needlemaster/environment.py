@@ -6,6 +6,7 @@ Created on Thu Oct 08 11:30:52 2015
 """
 import os
 import math
+import random
 import numpy as np
 import torch
 from shapely.geometry import Polygon, Point # using to replace sympy
@@ -14,6 +15,9 @@ import pygame
 from pdb import set_trace as woah
 
 GREEN = (0, 255, 0)
+
+REWARD_DISTANCE = 0
+REWARD_ANGLE = 1
 
 def safe_load_line(name,handle):
     l = handle.readline()[:-1].split(': ')
@@ -42,19 +46,31 @@ class Environment:
 
     record_interval = 10 # how often to record an episode
 
+    # If filename is a directory, we'll sample randomly from envs
+
     def __init__(self, filename=None, mode=mode_demo):
 
         self.height   = 0
         self.width    = 0
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
-        self.max_time = 300
-        self.filename = filename
+        self.max_time = 600
+
+        if os.path.isdir(filename):
+            print("Random environments")
+            files = os.listdir(filename)
+            files = [f for f in files if f.startswith('env') ]
+            files = [os.path.join(filename, f) for f in files]
+            self.files = files
+        else:
+            self.files = [filename]
+
         if not os.path.exists('./out'):
             os.mkdir('./out')
         self.mode = mode
         self.episode = 0
         self.is_init = False # One-time stuff to do at reset
+        self.reward_type = REWARD_ANGLE
 
         # Create screen for scaling down
         if self.mode == mode_demo:
@@ -96,9 +112,12 @@ class Environment:
         self.record = (self.episode == 1 or \
                 self.episode % self.record_interval == 0)
         self.total_reward = 0.
+        self.last_reward = 0.
 
-        if self.filename is not None:
-            with open(self.filename, 'r') as file:
+        # choose a random environment (could be out of 1)
+        filename = random.choice(self.files)
+        if filename is not None:
+            with open(filename, 'r') as file:
                 self.load(file)
 
         self.needle = Needle(self.width, self.height)
@@ -138,7 +157,8 @@ class Environment:
         if save_image or self.record:
             # draw text
             myfont = pygame.font.SysFont('Arial', 20)
-            txtSurface = myfont.render(str(self.total_reward), False, (0,0,0))
+            reward_s = "TR:{:.5f}, R:{:.5f}".format(self.total_reward, self.last_reward)
+            txtSurface = myfont.render(reward_s, False, (0,0,0))
             surface.blit(txtSurface, (10,10))
 
             full_path = os.path.join(save_path, str(self.episode))
@@ -217,6 +237,7 @@ class Environment:
             reward = self.get_reward(gate_status, new_damage)
         else:
             reward = self.score()
+        self.last_reward = reward
         self.total_reward += reward
         #print("reward =", reward) # debug
 
@@ -398,16 +419,31 @@ class Environment:
 
         return score
 
-    def get_reward(self, gate_status, damage):
+    def get_reward(self, gate_status, new_damage):
         ''' Reward for RL '''
         reward = 0.
         if gate_status == PASSED_GATE:
-            reward += 0.5
+            reward += 1.0
         if gate_status == FAILED_GATE:
-            reward -= 0.5
+            reward -= 1.0
         if self._deep_tissue_intersect():
             reward -= 2.0
-        reward -= damage / 100.
+        if self.next_gate is not None:
+            gate_x = self.gates[self.next_gate].x
+            gate_y = self.gates[self.next_gate].y
+            dist_x = self.needle.x - gate_x
+            dist_y = self.needle.y - gate_y
+            if self.reward_type == REWARD_DISTANCE:
+                dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
+                reward -= dist / 100000.
+                #if dist >= 1.:
+                #    reward += 1. / (dist * 1000.)
+            elif self.reward_type == REWARD_ANGLE:
+                angle_to_gate = math.atan2(dist_y, dist_x)
+                reward = math.cos(self.needle.w - angle_to_gate)
+                reward /= 10000.
+
+        reward -= new_damage / 100.
         return reward
 
 NOP_GATE = 0 # Means nothing special
@@ -472,7 +508,7 @@ class Gate:
         pygame.draw.polygon(surface, self.c1, self.corners)
         # If next gate, outline in green
         if self.status == NEXT_GATE:
-            pygame.draw.polygon(surface, GREEN, self.corners, 2)
+            pygame.draw.polygon(surface, GREEN, self.corners, 20)
         pygame.draw.polygon(surface, self.c2, self.top)
         pygame.draw.polygon(surface, self.c3, self.bottom)
 
