@@ -457,8 +457,9 @@ class Environment:
                 if angle_to_gate < 0.:
                     angle_to_gate += two_pi
                 self.angle_to_gate = angle_to_gate
-                reward = math.cos(self.needle.w - angle_to_gate)
-                reward /= 10000.
+                reward_delta = math.cos(self.needle.w - angle_to_gate)
+                reward_delta /= 10000.
+                reward += reward_delta
 
         reward -= new_damage / 100.
         return reward
