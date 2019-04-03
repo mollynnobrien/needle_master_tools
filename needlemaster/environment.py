@@ -41,7 +41,7 @@ mode_demo = 0
 mode_rl = 1
 
 class Environment:
-    metadata = {'render.modes': ['rgb_array']}
+    metadata = {'render.modes': ['rgb_array', 'state']}
 
     background_color = np.array([99, 153, 174])
 
@@ -49,7 +49,7 @@ class Environment:
 
     # If filename is a directory, we'll sample randomly from envs
 
-    def __init__(self, filename=None, mode=mode_demo):
+    def __init__(self, filename=None, mode=mode_demo, default_render=None):
 
         self.height   = 0
         self.width    = 0
@@ -72,6 +72,7 @@ class Environment:
         self.episode = 0
         self.is_init = False # One-time stuff to do at reset
         self.reward_type = REWARD_ANGLE
+        self.default_render = default_render
 
         # Create screen for scaling down
         if self.mode == mode_demo:
@@ -136,59 +137,69 @@ class Environment:
 
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
+        # Override with default_render if given
+        if self.default_render is not None:
+            mode = self.default_render
 
-        self.screen.fill(self.background_color)
+        # don't render if not needed e.g. returning state
+        if mode == 'rgb_array' or save_image or self.record:
+            self.screen.fill(self.background_color)
 
-        for surface in self.surfaces:
-            surface.draw(self.screen)
+            for surface in self.surfaces:
+                surface.draw(self.screen)
 
-        for gate in self.gates:
-            gate.draw(self.screen)
+            for gate in self.gates:
+                gate.draw(self.screen)
 
-        self.needle.draw(self.screen)
+            self.needle.draw(self.screen)
 
-        # --- Done with drawing ---
+            # --- Done with drawing ---
 
-        # Scale if needed
-        surface = self.screen
-        if self.scaled_screen is not None:
-            # Precreate surface with final dim and use ~DestSurface
-            # Also consider smoothscale
-            pygame.transform.scale(self.screen, [224, 224], self.scaled_screen)
-            surface = self.scaled_screen
+            # Scale if needed
+            surface = self.screen
+            if self.scaled_screen is not None:
+                # Precreate surface with final dim and use ~DestSurface
+                # Also consider smoothscale
+                pygame.transform.scale(self.screen, [224, 224], self.scaled_screen)
+                surface = self.scaled_screen
 
-        if save_image or self.record:
-            # draw text
-            myfont = pygame.font.SysFont('Arial', 12)
-            debug = False
-            if debug:
-                if self.next_gate is not None:
-                    reward_s = "w:{:.2f}, a:{:.2f}, g:({:.0f}, {:.0f}), n:({:.0f}, {:.0f})".format(self.needle.w, self.angle_to_gate,
-                        self.gates[self.next_gate].x,
-                        self.gates[self.next_gate].y,
-                        self.needle.x,
-                        self.needle.y)
+            if save_image or self.record:
+                # draw text
+                myfont = pygame.font.SysFont('Arial', 12)
+                debug = False
+                if debug:
+                    if self.next_gate is not None:
+                        reward_s = "w:{:.2f}, a:{:.2f}, g:({:.0f}, {:.0f}), n:({:.0f}, {:.0f})".format(self.needle.w, self.angle_to_gate,
+                            self.gates[self.next_gate].x,
+                            self.gates[self.next_gate].y,
+                            self.needle.x,
+                            self.needle.y)
+                    else:
+                        reward_s = ""
                 else:
-                    reward_s = ""
-            else:
-                reward_s = "TR:{:.5f}, R:{:.5f}".format(self.total_reward, self.last_reward)
-            txtSurface = myfont.render(reward_s, False, (0,0,0))
-            surface.blit(txtSurface, (10,10))
+                    reward_s = "TR:{:.5f}, R:{:.5f}".format(self.total_reward, self.last_reward)
+                txtSurface = myfont.render(reward_s, False, (0,0,0))
+                surface.blit(txtSurface, (10,10))
 
-            full_path = os.path.join(save_path, str(self.episode))
-            if not os.path.exists(full_path):
-                os.mkdir(full_path)
-            save_file = os.path.join(full_path, '{:03d}.png'.format(self.t))
-            pygame.image.save(surface, save_file)
+                full_path = os.path.join(save_path, str(self.episode))
+                if not os.path.exists(full_path):
+                    os.mkdir(full_path)
+                save_file = os.path.join(full_path, '{:03d}.png'.format(self.t))
+                pygame.image.save(surface, save_file)
 
-        # Return the figure in a numpy buffer
-        if mode == 'rgb_array':
-            arr = pygame.surfarray.array3d(surface)
-            # not necessary to convert to float since we store as uint8
-            #arr = arr.astype(np.float32)
-            #arr /= 255.
-            frame = torch.from_numpy(arr).permute(2,0,1)
-            return frame
+            # Return the figure in a numpy buffer
+            if mode == 'rgb_array':
+                arr = pygame.surfarray.array3d(surface)
+                # not necessary to convert to float since we store as uint8
+                #arr = arr.astype(np.float32)
+                #arr /= 255.
+                frame = torch.from_numpy(arr).permute(2,0,1)
+                return frame
+
+        if mode == 'state':
+            state = torch.tensor([self.needle.x, self.needle.y, self.needle.w],
+                    dtype=torch.float32)
+            return state
 
     @staticmethod
     def parse_name(filename):

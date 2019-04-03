@@ -3,7 +3,7 @@ import random
 import torch
 from torch import optim
 
-from .model import DQN
+from .model import DQNConv, DQN_FC
 
 
 class Agent():
@@ -17,6 +17,9 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
+
+    # Choose which DQN to use
+    DQN = DQN_FC if args.state else DQNConv
 
     self.online_net = DQN(args, self.action_space).to(device=args.device)
     if args.model and os.path.isfile(args.model):

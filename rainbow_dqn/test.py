@@ -15,7 +15,9 @@ Ts, rewards, Qs, best_avg_reward = [], [], [], -1e10
 # Test DQN
 def test(args, T, dqn, val_mem, evaluate=False):
   global Ts, rewards, Qs, best_avg_reward
-  env = Environment(filename=args.filename, mode=mode_rl)
+  def_arg = 'state' if args.state else None
+  env = Environment(filename=args.filename, mode=mode_rl,
+      default_render=def_arg)
   env.eval()
   Ts.append(T)
   T_rewards, T_Qs = [], []

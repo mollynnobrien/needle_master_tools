@@ -48,6 +48,8 @@ parser.add_argument('--log-interval', type=int, default=50, metavar='STEPS', hel
 #25000
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('filename', help='File for environment')
+parser.add_argument('--state', action='store_true', default=False,
+                    help='Use state instead of images')
 
 
 # Setup
@@ -71,7 +73,10 @@ def log(s):
 
 
 # Environment
-env = Environment(filename=args.filename, mode=mode_rl)
+# Default arg for env
+def_arg = 'state' if args.state else None
+env = Environment(filename=args.filename, mode=mode_rl,
+    default_render=def_arg)
 env.train()
 action_space = env.action_space()
 

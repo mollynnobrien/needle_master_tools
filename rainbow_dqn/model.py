@@ -30,6 +30,8 @@ class NoisyLinear(nn.Module):
   def _scale_noise(self, size):
     x = torch.randn(size)
     return x.sign().mul_(x.abs().sqrt_())
+    # TODO: y = x.abs().sqrt_()
+    # TODO: return x.sign_().mul_(y)
 
   def reset_noise(self):
     epsilon_in = self._scale_noise(self.in_features)
@@ -43,12 +45,22 @@ class NoisyLinear(nn.Module):
     else:
       return F.linear(input, self.weight_mu, self.bias_mu)
 
-
-class DQN(nn.Module):
+# Base class for convolutional and full connected
+class DQNBase(nn.Module):
   def __init__(self, args, action_space):
     super().__init__()
     self.atoms = args.atoms
     self.action_space = action_space
+
+  def reset_noise(self):
+    for name, module in self.named_children():
+      if 'fc' in name:
+        module.reset_noise()
+
+class DQNConv(DQNBase):
+  def __init__(self, args, action_space):
+    super().__init__(args, action_space)
+
     self.dim = 224
     self.first_size = args.history_length * args.channels
     self.initial_size = int(16 * self.dim * self.dim / (2 * 2))
@@ -89,13 +101,40 @@ class DQN(nn.Module):
     a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream
     v, a = v.view(-1, 1, self.atoms), a.view(-1, self.action_space, self.atoms)
     q = v + a - a.mean(1, keepdim=True)  # Combine streams
-    if log:  # Use log softmax for numerical stability
-      q = F.log_softmax(q, dim=2)  # Log probabilities with action over second dimension
-    else:
-      q = F.softmax(q, dim=2)  # Probabilities with action over second dimension
+    # Log probabilities with action over second dimension
+    q = F.log_softmax(q, dim=2) if log else F.softmax(q, dim=2)  
     return q
 
-  def reset_noise(self):
-    for name, module in self.named_children():
-      if 'fc' in name:
-        module.reset_noise()
+class DQN_FC(DQNBase):
+  def __init__(self, args, action_space):
+    super().__init__(args, action_space)
+    self.state_size = 3
+    self.reduced_size = 20
+    self.hidden_size = 20
+    self.fc1 = NoisyLinear(self.state_size, 20, std_init=args.noisy_std)
+    self.fc2 = NoisyLinear(20, 20, std_init=args.noisy_std)
+    self.fc_h_v = NoisyLinear(self.reduced_size, args.hidden_size, std_init=args.noisy_std)
+    self.fc_h_a = NoisyLinear(self.reduced_size, args.hidden_size, std_init=args.noisy_std)
+    self.fc_z_v = NoisyLinear(args.hidden_size, self.atoms, std_init=args.noisy_std)
+    self.fc_z_a = NoisyLinear(args.hidden_size, action_space * self.atoms, std_init=args.noisy_std)
+
+
+  def forward(self, x, log=False):
+    x = x.view(-1, self.state_size)
+    #print(x.shape)
+    x = F.relu(self.fc1(x))
+    #print(x.shape)
+    x = F.relu(self.fc2(x))
+    #print(x.shape)
+
+    x = x.view(-1, self.reduced_size)
+    #print(x.shape)
+    v = self.fc_z_v(F.relu(self.fc_h_v(x)))  # Value stream
+    #print("v =", v.shape)
+    a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream
+    #print("a =", a.shape)
+    v, a = v.view(-1, 1, self.atoms), a.view(-1, self.action_space, self.atoms)
+    q = v + a - a.mean(1, keepdim=True)  # Combine streams
+    # Log probabilities with action over second dimension
+    q = F.log_softmax(q, dim=2) if log else F.softmax(q, dim=2)  
+    return q
