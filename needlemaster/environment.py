@@ -3,23 +3,29 @@
 Created on Thu Oct 08 11:30:52 2015
 
 @author: Chris Paxton
+
+Modified by Lifan Zhang April 2019
+
 """
 import os
 import math
-import random
 import numpy as np
+import matplotlib
 import torch
+import copy
+import random
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon as Poly
 from shapely.geometry import Polygon, Point # using to replace sympy
-import pygame
+from matplotlib.collections import PatchCollection
 
 from pdb import set_trace as woah
-
-GREEN = (0, 255, 0)
-
-REWARD_DISTANCE = 0
-REWARD_ANGLE = 1
-
 two_pi = math.pi * 2
+NOP_GATE = 0 # Means nothing special
+PASSED_GATE = 1
+FAILED_GATE = 2
+NEXT_GATE = 3
 
 def safe_load_line(name,handle):
     l = handle.readline()[:-1].split(': ')
@@ -27,78 +33,65 @@ def safe_load_line(name,handle):
 
     return l[1].split(',')
 
-'''
-x_moves = [3, 5, 10, 20]
-theta_moves = [-0.1, -0.05, 0.05, 0.1]
-# Force a little movement when turning to force rewards
-move_array = [(x, 0.) for x in x_moves] + [(1, y) for y in theta_moves]
-'''
-theta_moves = [-0.3, -0.1, 0, 0.1, 0.3]
-move_array = [(-15, t) for t in theta_moves]
+def array_to_tuples(array):
+    return zip(array[:,0],array[:,1])
+
+# def check_intersect(a, b):
+#     return a.poly.intersection(b.poly).area > 0.
+
+moves = [-0.1, -0.05, 0.05, 0.1]
+move_array = [(x, y) for x in moves for y in moves]
 
 # Different behaviors for demo/rl, as they have slightly different requirements
 mode_demo = 0
 mode_rl = 1
 
 class Environment:
-    metadata = {'render.modes': ['rgb_array', 'state']}
+    metadata = {'render.modes': ['rgb_array']}
 
-    background_color = np.array([99, 153, 174])
+    background_color = np.array([99., 153., 174.]) / 255
 
-    record_interval = 10 # how often to record an episode
+    record_interval = 10
 
-    # If filename is a directory, we'll sample randomly from envs
+    def __init__(self, episode_num, filename=None, mode=mode_demo, device=torch.device('cpu')):
 
-    def __init__(self, filename=None, mode=mode_demo, default_render=None):
-
+        self.t = 0
         self.height   = 0
         self.width    = 0
         self.needle   = None
         ''' TODO: how do we want to constrain the game time? '''
-        self.max_time = 600
-
-        if os.path.isdir(filename):
-            print("Random environments")
-            files = os.listdir(filename)
-            files = [f for f in files if f.startswith('env') ]
-            files = [os.path.join(filename, f) for f in files]
-            self.files = files
-        else:
-            self.files = [filename]
-
+        self.max_time = 150
+        ''' TODO keep track of which gate is next '''
+        self.next_gate    = None
+        self.filename = filename
         if not os.path.exists('./out'):
             os.mkdir('./out')
         self.mode = mode
+        self.device = device
         self.episode = 0
-        self.is_init = False # One-time stuff to do at reset
-        self.reward_type = REWARD_ANGLE
-        self.default_render = default_render
+        self.which_gate = self.next_gate
+        self.status = None
+        """ note the status of gates"""
+        self.action_bound = None
+        self.episode_reward = 0
 
-        # Create screen for scaling down
-        if self.mode == mode_demo:
-            self.scaled_screen = None # For scaling down
-        else:
-            self.scaled_screen = pygame.Surface((224, 224))
 
-        pygame.font.init()
+        self.reset(episode_num)
 
-        self.reset()
+    def sample_action(self):
+        b = self.action_bound
+        action = np.array([random.uniform(b[1,0],b[0,0]),random.uniform(b[1,1],b[0,1])])
+        return action
 
     def train(self):
         ''' Dummy method '''
-        pass
-
-    def close(self):
-        pass
-
-    def eval(self):
         pass
 
     def action_space(self):
         ''' Return the action space size of the environment '''
         return len(move_array)
 
-    def reset(self):
+    def reset(self, episode_num):
         ''' Create a new environment. Currently based on attached filename '''
         self.done = False
         self.ngates = 0
@@ -109,97 +102,66 @@ class Environment:
         self.damage = 0
         self.passed_gates = 0
         self.next_gate = None
-        self.old_score = 0. # deal with scoring -> reward signal
-        self.episode += 1 # next episode
+        self.old_score = 0
+        self.episode += 1
         self.record = (self.episode == 1 or \
                 self.episode % self.record_interval == 0)
         self.total_reward = 0.
         self.last_reward = 0.
 
-        # choose a random environment (could be out of 1)
-        filename = random.choice(self.files)
-        if filename is not None:
-            with open(filename, 'r') as file:
+        if self.filename is not None:
+            with open(self.filename, 'r') as file:
                 self.load(file)
 
         self.needle = Needle(self.width, self.height)
 
-        # Assume the width and height won't change
-        # Save the Surface creation
-        if not self.is_init:
-            self.is_init = True
-            self.screen = pygame.Surface((self.width, self.height))
+        # # Assume the width and height won't change
+        # # Save the Surface creation
+        # if not self.is_init:
+        #     self.is_init = True
+        #     self.screen = pygame.Surface((self.width, self.height))
 
         self.angle_to_gate = 0.
 
         # Return 1 frame of history
-        return self.render(save_image=False).unsqueeze(0)
+        return self.render(episode_num, save_image=False).unsqueeze(0)
 
+    def render(self, episode_num, mode='rgb_array', save_image=False, save_path='./out/'):
 
-    def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
-        # Override with default_render if given
-        if self.default_render is not None:
-            mode = self.default_render
+        fig = plt.figure(figsize=(2.24,2.24), dpi=100)
+        plt.ylim(self.height)
+        plt.xlim(self.width)
+        frame = plt.gca()
+        frame.set_facecolor(self.background_color)
+        frame.axes.get_xaxis().set_ticks([])
+        frame.axes.get_yaxis().set_ticks([])
 
-        # don't render if not needed e.g. returning state
-        if mode == 'rgb_array' or save_image or self.record:
-            self.screen.fill(self.background_color)
+        for surface in self.surfaces:
+            surface.draw()
 
-            for surface in self.surfaces:
-                surface.draw(self.screen)
+        for gate in self.gates:
+            gate.draw()
 
-            for gate in self.gates:
-                gate.draw(self.screen)
+        self.needle.draw()
 
-            self.needle.draw(self.screen)
+        if save_image:
+            # woah()
+            frame.invert_xaxis()
+            plt.text(0,0,'epi reward: {:.2f}'.format(self.episode_reward))
+            plt.savefig('./out/{:d}_{:03d}.png'.format(episode_num, self.t))
 
-            # --- Done with drawing ---
-
-            # Scale if needed
-            surface = self.screen
-            if self.scaled_screen is not None:
-                # Precreate surface with final dim and use ~DestSurface
-                # Also consider smoothscale
-                pygame.transform.scale(self.screen, [224, 224], self.scaled_screen)
-                surface = self.scaled_screen
-
-            if save_image or self.record:
-                # draw text
-                myfont = pygame.font.SysFont('Arial', 12)
-                debug = False
-                if debug:
-                    if self.next_gate is not None:
-                        reward_s = "w:{:.2f}, a:{:.2f}, g:({:.0f}, {:.0f}), n:({:.0f}, {:.0f})".format(self.needle.w, self.angle_to_gate,
-                            self.gates[self.next_gate].x,
-                            self.gates[self.next_gate].y,
-                            self.needle.x,
-                            self.needle.y)
-                    else:
-                        reward_s = ""
-                else:
-                    reward_s = "TR:{:.5f}, R:{:.5f}".format(self.total_reward, self.last_reward)
-                txtSurface = myfont.render(reward_s, False, (0,0,0))
-                surface.blit(txtSurface, (10,10))
-
-                full_path = os.path.join(save_path, str(self.episode))
-                if not os.path.exists(full_path):
-                    os.mkdir(full_path)
-                save_file = os.path.join(full_path, '{:03d}.png'.format(self.t))
-                pygame.image.save(surface, save_file)
-
-            # Return the figure in a numpy buffer
-            if mode == 'rgb_array':
-                arr = pygame.surfarray.array3d(surface)
-                # not necessary to convert to float since we store as uint8
-                #arr = arr.astype(np.float32)
-                #arr /= 255.
-                frame = torch.from_numpy(arr).permute(2,0,1)
-                return frame
-
-        if mode == 'state':
-            state = torch.tensor([self.needle.x, self.needle.y, self.needle.w],
-                    dtype=torch.float32)
-            return state
+        # Return the figure in a numpy buffer
+        if mode == 'rgb_array':
+            fig.canvas.draw()
+            buf = fig.canvas.tostring_rgb()
+            ncols, nrows = fig.canvas.get_width_height()
+            plt.close('all')
+            arr = np.fromstring(buf, dtype=np.uint8).reshape(nrows, ncols, 3)
+            arr = arr.astype(np.float32)
+            arr /= 255.
+            return torch.from_numpy(arr).permute(2,0,1).to(device=self.device)
+        else:
+            plt.close('all')
 
     @staticmethod
     def parse_name(filename):
@@ -220,16 +182,16 @@ class Environment:
         self.ngates = int(D[0])
         #print " - num gates=%d"%(self.ngates)
 
-        for _ in range(self.ngates):
-            gate = Gate(self.width, self.height)
+        for i in range(self.ngates):
+            gate = Gate(self.width,self.height)
             gate.load(handle)
             self.gates.append(gate)
 
-        if self.ngates > 0:
+        if(self.ngates > 0):
             self.next_gate = 0
-            self.gates[0].status = NEXT_GATE
+            self.gates[self.next_gate].status = 'next_gate'
 
-        D = safe_load_line('Surfaces', handle)
+        D = safe_load_line('Surfaces',handle)
         self.nsurfaces = int(D[0])
         #print " - num surfaces=%d"%(self.nsurfaces)
 
@@ -238,7 +200,7 @@ class Environment:
             s.load(handle)
             self.surfaces.append(s)
 
-    def step(self, action, save_image=False, save_path='./out/'):
+    def step(self, action, episode_num, selection, save_image=False, save_path = './out/'):
         """
             Move one time step forward
             Returns:
@@ -247,38 +209,44 @@ class Environment:
               * done
         """
         if self.mode == mode_rl:
-            #print("action =", action)
             action = move_array[action]
 
-        needle_surface = self._surface_with_needle()
-        self.needle.move(action, needle_surface, mode=self.mode)
-        new_damage = self._get_new_damage(action, needle_surface)
-        gate_status = self._update_and_check_gate_status()
-        running = self._can_keep_running()
-        self.damage += new_damage
-        self.t += 1
+        """check whether target position has changed, before needle_move"""
+        if self.which_gate != self.next_gate:
+            self.GetTargetPoint()
 
-        if self.mode == mode_rl:
-            reward = self.get_reward(gate_status, new_damage)
-        else:
-            reward = self.score()
+        needle_surface = self._surface_with_needle()
+        self.needle.move(action, needle_surface, selection)
+        new_damage = self._get_new_damage(action, needle_surface)
+        running = self._can_keep_running()
+
+        self.t += 1
+        # print("gate_status: " + str(self.status))
+        # print("new_damage: "+str(new_damage))
+        reward = self.get_reward(self.status, action, new_damage)
+        # print("reward: " + str(reward))
+
         self.last_reward = reward
         self.total_reward += reward
-        #print("reward =", reward) # debug
+        self.which_gate = self.next_gate
+        if not running and self.t != 0:
+            frame = self.render(episode_num, save_image=True, save_path=save_path)
+        else:
+            frame = self.render(episode_num, save_image=False, save_path=save_path)
 
-        frame = self.render(save_image=save_image, save_path=save_path)
+        """ plot each step """
+        # frame = self.render(episode_num, save_image=True, save_path=save_path)
 
-        # Unsqueeze to have 1 frame of 'history'
+
         return (frame.unsqueeze(0), reward, not running)
 
+
+    """ new damage caused by this step """
     def _surface_with_needle(self):
         for s in self.surfaces:
             if self._needle_in_surface(s):
                 return s
         return None
-
-    def _needle_in_surface(self, s):
-        return s.poly.contains(self.needle.tip)
 
     def _get_new_damage(self, movement, surface):
         if surface is not None:
@@ -286,23 +254,37 @@ class Environment:
         else:
             return 0.
 
-    def _update_and_check_gate_status(self):
-        """ have we passed a new gate? """
-        status = NOP_GATE
-        if self.next_gate is not None:
-            status = \
-                    self.gates[self.next_gate] \
-                    .update_status(self.needle.tip)
-            if status == FAILED_GATE or status == PASSED_GATE:
-                # increment to the next gate
-                self.next_gate += 1
-                if self.next_gate < self.ngates:
-                    # if we have this many gates, set gate status to be next
-                    self.gates[self.next_gate].status = NEXT_GATE
-                else:
-                    self.next_gate = None
-        return status
+    def _needle_in_tissue(self):
+        for s in self.surfaces:
+            if self._needle_in_surface(s):
+                return True
+        return False
 
+    def _needle_in_surface(self, s):
+        needle_tip = np.array([self.needle.x, self.height - self.needle.y])
+        s_flag = s.poly.contains(Point(needle_tip))
+        return s_flag
+
+    """ check gate status """
+    # def _update_and_check_gate_status(self):
+    #     """ have we passed a new gate? """
+    #     x = self.needle.x
+    #     y = self.needle.y
+    #     status = None
+    #     if self.next_gate is not None:
+    #         status = self.gates[self.next_gate].update([x, self.height - y])
+    #         print("gate status: " + str(status))
+    #         if status == 'failed' or status == 'passed':
+    #             # increment to the next gate
+    #             self.next_gate += 1
+    #             if self.next_gate < self.ngates:
+    #                 # if we have this many gates, set gate status to be next
+    #                 self.gates[self.next_gate].status = 'next_gate'
+    #             else:
+    #                 self.next_gate = None
+    #     return status
+
+    """ check running status: done or not """
     def _can_keep_running(self):
         """
             verify if the game is in a valid state and we can
@@ -336,6 +318,55 @@ class Environment:
 
         return valid_pos and valid_deep and valid_t and valid_damage
 
+    def check_status(self):
+        """
+            verify if the game is in a valid state and can
+            keep playing
+        """
+        # is the needle off the screen?
+        x = self.needle.x
+        y = self.needle.y
+
+        """ have you passed a new gate? """
+        if(self.next_gate is not None):
+            self.gates[self.next_gate].update([x, self.height - y])
+            self.status = self.gates[self.next_gate].status
+            # if you passed or failed the gate
+            # print("gate status: "+str(self.status))
+            if(self.gates[self.next_gate].status != 'next_gate'):
+                # increment to the next gate
+                self.next_gate = self.next_gate + 1
+                if(self.next_gate < self.ngates):
+                    # if we have this many gates, set gate status to be next
+                    self.gates[self.next_gate].status = 'next_gate'
+                else:
+                    self.next_gate = None
+
+
+        """ are you in a valid game configuration? """
+        valid_x = x >= 0 and x <= self.width
+        valid_y = y >= 0 and y <= self.height
+        valid_pos = valid_x and valid_y
+        if not valid_pos:
+            print("Invalid position")
+
+        # have you hit deep tissue?
+        valid_deep = not self._deep_tissue_intersect()
+        if not valid_deep:
+            print("Punctured deep tissue")
+
+        # check if you have caused too much tissue damage
+        valid_damage = self.damage < 100
+        if not valid_damage:
+            print("Caused too much tissue damage")
+
+        # are you out of time?
+        valid_t = self.t < self.max_time
+        if not valid_t:
+            print("Ran out of game time")
+
+        return valid_pos and valid_deep and valid_t and valid_damage
+
     def _deep_tissue_intersect(self):
         """
             check each surface, does the needle intersect the
@@ -348,8 +379,9 @@ class Environment:
 
     def _compute_passed_gates(self):
         passed_gates = 0
+        # see if thread_points goes through the gate at any points
         for gate in self.gates:
-            if gate.status == PASSED_GATE:
+            if gate.status == 'passed':
                 passed_gates += 1
 
         return passed_gates
@@ -402,8 +434,8 @@ class Environment:
 
     def _damage_score(self):
         '''
-                damage from tissue btwn [0, 100]. Scale to between [-1000,0]
-                damage from deep tissue is -1000
+            damage from tissue btwn [0, 100]. Scale to between [-1000,0]
+            damage from deep tissue is -1000
         '''
         MIN_SCORE = -1000.0
 
@@ -444,50 +476,132 @@ class Environment:
 
         return score
 
-    def get_reward(self, gate_status, new_damage):
-        ''' Reward for RL '''
-        reward = 0.
-        if gate_status == PASSED_GATE:
-            reward += 1.0
-        if gate_status == FAILED_GATE:
-            reward -= 1.0
-        if self._deep_tissue_intersect():
-            reward -= 2.0
+    def GetTargetPoint(self):
         if self.next_gate is not None:
             gate_x = self.gates[self.next_gate].x
             gate_y = self.gates[self.next_gate].y
+        else:
+            """ final end point """
+            gate_x = 1784
+            gate_y = 2
+        dist_x = gate_x - self.needle.x
+        dist_y = gate_y - self.needle.y
+        self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
+        # self.dist = copy.deepcopy(self.dist_pre)
+
+    """ no damage considered currently """
+    def get_reward(self, gate_status, action, new_damage):
+        reward = 0.0
+        if self.next_gate is not None:
+            if gate_status == 'passed':
+                reward = 100.
+                print('Reach the Goal')
+            elif gate_status == 'failed':
+                reward = -50.
+                print('Failed')
+            elif gate_status == 'next_gate':
+                gate_x = self.gates[self.next_gate].x
+                gate_y = self.gates[self.next_gate].y
+                dist_x = gate_x - self.needle.x
+                dist_y = gate_y - self.needle.y
+                self.dist_pre = copy.copy(self.dist)
+                self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
+                dd = self.dist_pre - self.dist
+                reward = dd * math.cos(action[1])
+                """ print for checking """
+                # print("distance: " + str(dd))
+                # print("action: " + str(action))
+                # print("w: " + str(self.needle.w))
+
+        elif self.next_gate is None:
+            """ final end point """
+            gate_x = 1784
+            gate_y = 2
             dist_x = gate_x - self.needle.x
             dist_y = gate_y - self.needle.y
-            if self.reward_type == REWARD_DISTANCE:
-                dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
-                reward -= dist / 100000.
-                #if dist >= 1.:
-                #    reward += 1. / (dist * 1000.)
-            elif self.reward_type == REWARD_ANGLE:
-                angle_to_gate = math.pi - math.atan2(dist_y, dist_x)
-                if angle_to_gate < 0.:
-                    angle_to_gate += two_pi
-                self.angle_to_gate = angle_to_gate
-                reward_delta = math.cos(self.needle.w - angle_to_gate)
-                reward_delta /= 10000.
-                reward += reward_delta
+            self.dist_pre = copy.copy(self.dist)
+            self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
+            dd = self.dist_pre - self.dist
+            reward = dd * math.cos(action[1])
 
-        reward -= new_damage / 100.
+
+        # """ double check """
+        # angle_to_gate = math.pi - math.atan2(dist_y, dist_x)
+        # if angle_to_gate < 0.:
+        #     angle_to_gate += two_pi
+        # self.angle_to_gate = angle_to_gate
+        # delta = math.cos(self.needle.w - angle_to_gate)
+
+        ## 0.25 serves as time penalty
+        reward = reward - new_damage*10 - 0.25
+
+        if self._deep_tissue_intersect():
+            reward = -500.
+            print('into tissue')
+
         return reward
 
-NOP_GATE = 0 # Means nothing special
-PASSED_GATE = 1
-FAILED_GATE = 2
-NEXT_GATE = 3
+
+    ## for controller
+    def GetSelfState(self):
+        x = self.needle.x
+        y = self.needle.y
+        w = self.needle.w - math.pi     ## convert from pi to 0
+        state = np.array([x,y,-w])
+        # print("needle position: "+ str(x) +" "+ str(y))
+        return state
+
+    def GetGoalState(self,t):
+        needle = self.GetSelfState()    ## needle state in global framework
+        if self.next_gate is not None:
+            gate = self.gates[self.next_gate]
+            local_x = (gate.x - needle[0])*np.cos(needle[2]) + (gate.y - needle[1])*np.sin(needle[2])
+            local_y = -(gate.x - needle[0]) *np.sin(needle[2]) + (gate.y - needle[1])*np.cos(needle[2])
+        else:
+            local_x = 50
+            local_y = 0
+        # if t>1:
+        #     print("t: "+str(t))
+        #     print("which gate: "+str(self.next_gate))
+        #     # print("position: "+str(local_x)+"  "+str(local_y))
+        return [-local_x,  -local_y]
+
+    def PIDcontroller(self, action_constrain, Parameters, t):
+        X = self.GetSelfState()
+        X_t = self.GetGoalState(t)
+        # print("state: " +str(X))
+
+
+        # dis = np.linalg.norm(X_t)
+        # angle = math.atan2(X_t[1],X_t[0])
+        # action =  np.array([dis,angle]) * np.array(Parameters)
+        action = np.array(X_t) * np.array(Parameters)
+
+
+        # if action[0] < 0.:
+        #     action[0] = 0.
+        # elif action[0] > action_constrain[0]:
+        #     action[0] = action_constrain[0]
+
+        # if abs(X_t[0]) < 1:
+        #     action[1] = 0
+
+        if action[1] < -action_constrain[1]:
+            action[1] = -action_constrain[1]
+        elif action[1] > action_constrain[1]:
+            action[1] = action_constrain[1]
+
+
+        return action
 
 class Gate:
-    color_passed = np.array([100, 175, 100])
-    color_failed = np.array([175, 100, 100])
-    color1 = np.array([251, 216, 114])
-    color2 = np.array([255, 50, 12])
-    color3 = np.array([255, 12, 150])
+    color_passed = np.array([100., 175., 100.]) / 255
+    color_failed = np.array([175., 100., 100.]) / 255
+    color1 = np.array([251., 216., 114.]) / 255
+    color2 = np.array([255., 50., 12.]) / 255
+    color3 = np.array([255., 12., 150.]) / 255
 
-    def __init__(self, env_width, env_height):
+    def __init__(self,env_width,env_height):
         self.x = 0
         self.y = 0
         self.w = 0
@@ -496,7 +610,8 @@ class Gate:
         self.corners = np.zeros((4,2))
         self.width = 0
         self.height = 0
-        self.status = NOP_GATE
+        self.status = None
+        self.partner = None
         ''' NOTE Chris implemented 'partner' gates, I think
         we can ignore this and implement gates that have to
         be hit sequentially for now '''
@@ -513,34 +628,57 @@ class Gate:
         self.env_width = env_width
         self.env_height = env_height
 
+    def contains(self, poly, traj):
+        return [poly.contains(Point(x)) for x in traj]
+
+    def update(self, pos):
+        ''' take in current position,
+            see if you passed or failed the gate'''
+        p = Point(pos)
+        if self.status != 'passed' and \
+            (self.top_box.contains(p) or self.bottom_box.contains(p)):
+            self.status = 'failed'
+            self.c1 = self.color_failed
+            self.c2 = self.color_failed
+            self.c3 = self.color_failed
+
+        elif self.box.contains(p) and self.status == 'next_gate':
+            self.status = 'passed'
+            self.c1 = self.color_passed
+            self.c2 = self.color_passed
+            self.c3 = self.color_passed
+
+
     def update_status(self, p):
         ''' take in current position,
             see if you passed or failed the gate
         '''
-        if self.status != PASSED_GATE and \
+        if self.status != 'passed' and \
             (self.top_box.contains(p) or self.bottom_box.contains(p)):
-            self.status = FAILED_GATE
+            self.status = 'failed'
             self.c1 = self.color_failed
             self.c2 = self.color_failed
             self.c3 = self.color_failed
-        elif self.status == NEXT_GATE and self.box.contains(p):
-            self.status = PASSED_GATE
+        elif self.status == 'next_gate' and self.box.contains(p):
+            self.status = 'passed'
             self.c1 = self.color_passed
             self.c2 = self.color_passed
             self.c3 = self.color_passed
         return self.status
 
-    def draw(self, surface):
-        """
-        warning = Color.argb(255, 255, 50, 12);
-        """
-        pygame.draw.polygon(surface, self.c1, self.corners)
-        # If next gate, outline in green
-        if self.status == NEXT_GATE:
-            pygame.draw.polygon(surface, GREEN, self.corners, 20)
-        pygame.draw.polygon(surface, self.c2, self.top)
-        pygame.draw.polygon(surface, self.c3, self.bottom)
 
+    def draw(self):
+        """
+        private static final int warning = Color.argb(255, 255, 50, 12);
+        """
+        axes = plt.gca()
+        axes.add_patch(Poly(self.corners, color=self.c1))
+        if self.status == 'next_gate':
+            axes.add_patch(Poly(self.corners,
+                facecolor=self.c1, edgecolor='green'))
+        axes.add_patch(Poly(self.top, facecolor=self.c2))
+        axes.add_patch(Poly(self.bottom, facecolor=self.c3))
+        # if next_gate, outline in green
     '''
     Load Gate from file at the current position.
     '''
@@ -593,7 +731,6 @@ class Gate:
         self.top_box    = Polygon(self.top)
         self.bottom_box = Polygon(self.bottom)
 
-
 class Surface:
 
     def __init__(self, env_width, env_height):
@@ -607,10 +744,10 @@ class Surface:
 
         self.poly = None
 
-    def draw(self, surface):
+    def draw(self):
         ''' update damage and surface color '''
-        pygame.draw.polygon(surface, self.color, self.corners)
-
+        axes = plt.gca()
+        axes.add_patch(Poly(self.corners, color=self.color))
     '''
     Load surface from file at the current position
     '''
@@ -624,8 +761,8 @@ class Surface:
 
 
         self.deep = isdeep[0] == 'true'
-        self.deep_color = np.array([207, 69, 32])
-        self.light_color = np.array([232, 146, 124])
+        self.deep_color = np.array([207., 69., 32.]) / 255
+        self.light_color = np.array([232., 146., 124.]) / 255
         self.color = np.array(self.deep_color if self.deep else self.light_color)
 
         self.poly = Polygon(self.corners)
@@ -639,23 +776,23 @@ class Surface:
                 self.damage = 100
             self._update_color()
             return new_damage
-        return 0.
+        return False
+
 
     def _update_color(self):
-        alpha = self.damage
-        beta = (100. - self.damage)
-        self.color = (beta * self.light_color + alpha * self.deep_color) / 100
+        alpha = self.damage / 100.
+        beta = (100. - self.damage) / 100.
+        self.color = beta * self.light_color + alpha * self.deep_color
 
 class Needle:
-
-    # Assume w=0 points to the negative x-axis
 
     def __init__(self, env_width, env_height):
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
-        self.w = math.pi             # face right
+        self.w = math.pi
         self.corners = None
 
+        self.max_dXY      = 75
         self.length_const = 0.08
         self.scale        = np.sqrt(env_width**2 + env_height**2)
         self.is_moving    = False
@@ -663,22 +800,20 @@ class Needle:
         self.env_width = env_width
         self.env_height = env_height
 
-        self.needle_color  = np.array([134, 200, 188])
-        self.thread_color  = np.array([167, 188, 214])
+        self.needle_color  = np.array([134., 200., 188.])/255
+        self.thread_color  = np.array([167., 188., 214.])/255
 
-        # Save adjusted thread points since we don't use them for anything
-        self.thread_points = [(self.x, env_height - self.y)]
+        self.thread_points = [(self.x, self.y)]
         self.tip = Point(np.array([self.x, self.env_height - self.y]))
         self.path_length = 0.
 
-        self._update_corners()
+        self.load()
 
+    def draw(self):
+        self._draw_needle()
+        self._draw_thread()
 
-    def draw(self, surface):
-        self._draw_thread(surface)
-        self._draw_needle(surface)
-
-    def _update_corners(self):
+    def _compute_corners(self):
         """
             given x,y,w compute needle corners and save
         """
@@ -686,74 +821,76 @@ class Needle:
         x = self.x
         y = self.env_height - self.y
 
-        length = self.length_const * self.scale
-
-        lcosw = length * math.cos(w)
-        lsinw = length * math.sin(w)
-        scale = 0.01 * self.scale
-
-        # Back of the needle
         top_w = w - math.pi/2
         bot_w = w + math.pi/2
 
-        top_x = x - scale * math.cos(top_w) + lcosw
-        top_y = y - scale * math.sin(top_w) + lsinw
-        bot_x = x - scale * math.cos(bot_w) + lcosw
-        bot_y = y - scale * math.sin(bot_w) + lsinw
+        length = self.length_const * self.scale
+
+        top_x = x - (0.01 * self.scale) * math.cos(top_w) + \
+                (length * math.cos(w))
+        top_y = y - (0.01 * self.scale) * math.sin(top_w) + \
+                (length * math.sin(w))
+        bot_x = x - (0.01 * self.scale) * math.cos(bot_w) + \
+                (length * math.cos(w))
+        bot_y = y - (0.01 * self.scale) * math.sin(bot_w) + \
+                (length * math.sin(w))
 
         self.corners = np.array([[x, y], [top_x, top_y], [bot_x, bot_y]])
 
-    def _draw_needle(self, surface):
-        pygame.draw.polygon(surface, self.needle_color, self.corners)
+    def _draw_needle(self):
+        axes = plt.gca()
+        axes.add_patch(Poly(self.corners, color=self.needle_color))
 
-    def _draw_thread(self, surface):
-        if len(self.thread_points) > 1:
-            # TODO: consider aalines
-            pygame.draw.lines(surface, self.thread_color, False, self.thread_points, 10)
+    def _draw_thread(self):
+        if len(self.thread_points) > 0:
+            thread_points = np.array(self.thread_points)
+            plt.plot(thread_points[:,0],
+                    self.env_height - thread_points[:, 1],
+                    c=self.thread_color)
+    def load(self):
+        """
+            Load the current needle position
+        """
+        # compute the corners for the current position
+        self._compute_corners()
+        self.poly = Polygon(self.corners)
 
-    def move(self, movement, surface, mode):
+    def move(self, movement, needle_in_tissue, selection):
         """
             Given an input, move the needle. Update the position, orientation,
             and thread path in android game movement is specified by touch
             points. last_x, last_y specify the x,y in the previous time step
             and x,y specify the current touch point
 
+            dx = x - last_x
+            dy = y - last_y
+            w  = atan2(dy/dx)
+
+            right now we assume you take in dx and dy
+            (since we can directly pass that)
+
         """
         dX = movement[0]
         dw = movement[1]
 
-        # Movement through a surface is more limited
-        if surface is not None:
+        if needle_in_tissue:
             dw = 0.5 * dw
-            if abs(dw) > 0.01:
+            if(abs(dw)> 0.01):
                 dw = 0.02 * np.sign(dw)
 
-        self.w += dw
-        if self.w < 0.:
-            self.w += two_pi
-        elif self.w >= two_pi:
-            self.w -= two_pi
+        self.w = self.w + dw
+        self.x = self.x + dX * math.cos(self.w)
+        if selection == 'play':
+            self.y = self.y - dX * math.sin(self.w)  ### problem's here!!!  generation: +;;  play: --;;
+        if selection == 'control':
+            self.y = self.y + dX * math.sin(self.w)
 
-        dx = dX * math.cos(self.w)
-        dy = -dX * math.sin(self.w) # y is reversed
-        oldx, oldy = self.x, self.y
-        self.x += dx
-        self.y += dy
+        self._compute_corners()
+        self.poly = Polygon(self.corners)
+        self.thread_points.append(np.array([self.x, self.y]))
+        dx = self.thread_points[-1][0] - self.thread_points[-2][0]
+        dy = self.thread_points[-1][1] - self.thread_points[-2][1]
+        dlength = math.sqrt(dx * dx + dy * dy)
+        self.path_length += dlength
 
-        # In RL mode, don't allow to go out of bounds
-        # TODO: do we want this? Negative reward is better
-        if mode == mode_rl:
-            if self.x < 0 or self.x >= self.env_width:
-                self.x = oldx
-            if self.y < 0 or self.y >= self.env_height:
-                self.y = oldy
 
-        #print("move = ", movement, "wxy = ", self.w, self.x, self.y) # debug
-
-        self.tip = Point(np.array([self.x, self.env_height - self.y]))
-        self._update_corners()
-
-        if self.x != oldx or self.y != oldy:
-            self.thread_points.append((self.x, self.env_height - self.y))
-            dlength = math.sqrt(dx * dx + dy * dy)
-            self.path_length += dlength
