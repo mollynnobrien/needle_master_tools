@@ -7,7 +7,7 @@ Created on Thu Oct 08 11:31:19 2015
 import math
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pdb import set_trace as woah
 

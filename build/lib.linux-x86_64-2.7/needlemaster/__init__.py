@@ -1,2 +1,2 @@
-from demo import *
-from environment import *
+from .demo import *
+from .environment import *

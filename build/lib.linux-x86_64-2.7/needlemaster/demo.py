@@ -30,10 +30,10 @@ class Demo:
         self.env_width = env_width
 
         if not filename is None:
-            handle = file(filename,'r')
-            (env,time) = self.parse_name(filename)
-            self.load(handle)
-            self.env = env
+            with open(filename, 'r') as file:
+                (env, time) = self.parse_name(filename)
+                self.load(file)
+                self.env = env
 
     @staticmethod
     def parse_name(filename):

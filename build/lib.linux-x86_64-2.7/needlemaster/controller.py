@@ -6,9 +6,6 @@ written by Lifan 02/2019. Ported by Molly 03/2019
 
 
 '''
-import math
-import numpy as np
-from pdb import set_trace as woah
 
 class PIDcontroller:
     '''
@@ -19,6 +16,8 @@ class PIDcontroller:
                 bounds: action constraints
     '''
     def __init__(self, params=None, bounds=None):
+        self.filename = filename
+
         if(params is not None):
             self.params = np.array(params)
         else:
@@ -29,27 +28,22 @@ class PIDcontroller:
 
     def step(self, cur_state, goal_state):
         cur_state  = self.convert_cur_state(cur_state)
-        error      = self.convert_goal_state(cur_state, goal_state)
-        action     = np.multiply(error, self.params)
-
-        # dX = np.sqrt(cart_action[0]**2 + cart_action[1]**2)
-        # dtheta = math.atan2(cart_action[1], cart_action[0])
-        #
-        # action = np.array([-1*dX, dtheta])
+        error = self.convert_goal_state(goal_state)
+        action = np.multiply(error, self.params)
 
         # check we are within bounds of actions (if bounds were provided)
         # TODO: why do we only check dY?
         if(self.bounds is not None):
-            if action[1] < -self.bounds[1]:
-                action[1] = -self.bounds[1]
-            elif action[1] > self.bounds[1]:
-                action[1] = self.bounds[1]
+            if action[1] < -bounds[1]:
+                action[1] = -bounds[1]
+            elif action[1] > bounds[1]:
+                action[1] = bounds[1]
 
         return action
 
     def convert_cur_state(self, cur_state):
         ''' flip the angle '''
-        state = np.array([cur_state[0], cur_state[1], math.pi - cur_state[2]])
+        state = np.array([cur_state[0], cur_state[1], -1*cur_state[2]])
         return state
 
     def convert_goal_state(self, cur_state, gate_pos):

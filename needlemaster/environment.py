@@ -5,11 +5,12 @@ Created on Thu Oct 08 11:30:52 2015
 @author: Chris Paxton
 """
 import os
+import csv
 import math
-import numpy as np
 import torch
-from shapely.geometry import Polygon, Point # using to replace sympy
 import pygame
+import numpy as np
+from shapely.geometry import Polygon, Point # using to replace sympy
 
 from pdb import set_trace as woah
 
@@ -44,15 +45,15 @@ class Environment:
 
     def __init__(self, filename=None, mode=mode_demo, save_path=None):
 
-        self.height    = 0
-        self.width     = 0
-        self.needle    = None
-        self.max_time  = 300 # TODO: how do we want to constrain the game time?
-        self.filename  = filename
-        self.save_path = save_path # used for saving trajectories from control or RL alg
-        self.mode      = mode
-        self.episode   = 0
-        self.is_init   = False # One-time stuff to do at reset
+        self.height       = 0
+        self.width        = 0
+        self.needle       = None
+        self.max_time     = 300 # TODO: how do we want to constrain the game time?
+        self.filename     = filename
+        self.save_path    = save_path # used for saving trajectories from control or RL alg and the images. traj saved as demo.csv in the folder. images also in folder.
+        self.mode         = mode
+        self.episode      = 0
+        self.is_init      = False # One-time stuff to do at reset
 
         # Create screen for scaling down
         if self.mode == mode_demo:
@@ -61,6 +62,9 @@ class Environment:
             self.scaled_screen = pygame.Surface((224, 224))
 
         pygame.font.init()
+
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
 
         self.reset()
 
@@ -101,8 +105,9 @@ class Environment:
 
         self.save_demo = (self.save_path is not None)
         if(self.save_demo): # open the file to save to
-            with open(self.save_path, 'w', newline='') as f:
-                self.csv = csv.writer(f)
+            with open(self.save_path + 'demo.csv', 'w', newline='') as f:
+                csv_writer = csv.writer(f)
+                f.close()
 
 
         self.needle = Needle(self.width, self.height)
@@ -114,7 +119,7 @@ class Environment:
             self.screen = pygame.Surface((self.width, self.height))
 
         # Return 1 frame of history
-        return self.render(save_image=False).unsqueeze(0)
+        return self.render(save_image=False, save_path=self.save_path).unsqueeze(0)
 
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
@@ -227,8 +232,11 @@ class Environment:
         frame = self.render(save_image=save_image, save_path=save_path)
         # If we want to save a demo csv
         if(self.save_demo):
-            data_row = [environment.t, environment.needle.x, environment.needle.y, environment.needle.w, action[0], action[1]]
-            self.csv.writerow(data_row)
+            with open(self.save_path, 'a+', newline='') as f:
+                csv_writer = csv.writer(f)
+                data_row = [self.t, self.needle.x, self.needle.y, self.needle.w, action[0], action[1]]
+                csv_writer.writerow(data_row)
+                f.close()
 
         # Unsqueeze to have 1 frame of 'history'
         return (frame.unsqueeze(0), reward, not running)
@@ -295,9 +303,6 @@ class Environment:
         valid_t = self.t < self.max_time
         if not valid_t:
             print("Ran out of game time")
-        # if done
-        if(not (valid_pos and valid_deep and valid_t and valid_damage) and self.save_demo):
-            self.csv.close() # close the demo file
 
         return valid_pos and valid_deep and valid_t and valid_damage
 

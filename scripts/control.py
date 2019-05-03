@@ -17,13 +17,16 @@ def control(env_path, save_path):
 
             Args:
                 env_path: path/to/corresponding/environment/file
-                save_path: (OPTIONAL) path/to/save/demo/file. If save_path is empty then images/demonstration won't be saved
+                save_path: (OPTIONAL) path/to/save/demo/. The path should be a folder. In the folder
+                demo.csv and images will be saved.
+                If save_path is empty then images/demonstration won't be saved and images will be saved
+                to ./out/
     """
 
     environment        = nm.Environment(env_path, save_path=save_path)
     action_constraints = [10, np.pi/10]           # constraints on allowable motion
-    parameters         = [0.1, 0.1]#[0.1,0.0009]             # proportional control parameters --- these have been hand-tuned
-    save_images        = (save_path is not None)
+    parameters         = [0.1,0.0009]             # proportional control parameters --- these have been hand-tuned
+    save_images        = (save_path is not None) # only used to decide if should render the first image
 
     pid = PIDcontroller(params=parameters, bounds=action_constraints)
     """ ..................................... """
