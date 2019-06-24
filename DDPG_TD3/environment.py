@@ -14,8 +14,6 @@ import matplotlib
 import torch
 import copy
 import random
-import shutil
-
 
 
 matplotlib.use('Agg')
@@ -26,9 +24,10 @@ from shapely.geometry import Polygon, Point # using to replace sympy
 two_pi = math.pi * 2
 pi = math.pi
 SCALE = 30
-ANG_SCALE = 1/10* pi
-VEL_SCALE = 10
-CONST = 20
+ANG_SCALE = 1/20 * pi
+VEL_SCALE = 20
+CONST = 40
+
 
 def safe_load_line(name,handle):
     l = handle.readline()[:-1].split(': ')
@@ -45,7 +44,7 @@ class Environment:
     background_color = np.array([99., 153., 174.]) / 255
     record_interval = 10
 
-    def __init__(self, filename=None, mode=mode_demo, device=torch.device('cpu')):
+    def __init__(self, log_f, filename=None, mode=mode_demo, device=torch.device('cpu')):
 
         self.t = 0
         self.height   = 0
@@ -69,17 +68,15 @@ class Environment:
         self.total_timesteps = 0
         self.episode_num = 0
         self.Reward = []
-
-
-        self.reset()
+        self.prev_deviation = None
+        self.reset(log_f)
 
     def sample_action(self):
         b = self.action_bound
-        action = np.array([random.uniform(b[1,0],b[0,0]),random.uniform(b[1,1],b[0,1])])
+        action = np.array([random.uniform(b[0,0],b[1,0]),random.uniform(b[0,1],b[1,1])])
         return action
 
-
-    def reset(self):
+    def reset(self, log_f):
         ''' Create a new environment. Currently based on attached filename '''
         self.done = False
         self.ngates = 0
@@ -108,10 +105,10 @@ class Environment:
 
         self.angle_to_gate = 0.
 
-        state = self.step(np.array([0,0]))
+        state = self.step(np.array([0,0]), log_f)
 
         """" Return 1 frame of history; image info version """
-        # return self.render(self.episode_num, save_image=False).unsqueeze(0)
+        # return self.render(episode_num, save_image=False).unsqueeze(0)
 
         """" state info version """
         return state[0]
@@ -137,7 +134,7 @@ class Environment:
         if save_image:
             frame.invert_xaxis()
             plt.text(0,0,'epi reward: {:.2f}'.format(self.episode_reward))
-            plt.savefig('./out/{:d}_{:03d}.png'.format(self.episode_num, self.t))
+            plt.savefig(save_path+'{:d}_{:03d}.png'.format(self.episode_num, self.t))
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
@@ -189,7 +186,7 @@ class Environment:
             s.load(handle)
             self.surfaces.append(s)
 
-    def step(self, action, save_image=False, save_path = './out/'):
+    def step(self, action, log_f):
         """
             Move one time step forward
             Returns:
@@ -203,39 +200,72 @@ class Environment:
             self.GetTargetPoint()
 
         needle_surface = self._surface_with_needle()
-        self.needle.move(action, needle_surface)
+        self.needle.move(action, needle_surface, log_f)
         new_damage = self._get_new_damage(action, needle_surface)
-        running = self._can_keep_running()
 
         self.t += 1
-        # print("gate_status: " + str(self.status))
-        # print("new_damage: "+str(new_damage))
-        reward = self.get_reward(self.status, action, new_damage)
-        # print("reward: " + str(reward))
-        # print("status: " + str(self.status))
-        # print("reward: " + str(reward))
 
-        self.last_reward = reward
-        self.total_reward += reward
-        self.which_gate = self.next_gate
-        # if not running and self.t != 0 and self.episode_reward > 400 :
-        #     frame = self.render(self.episode_num, save_image=True, save_path=save_path)
-        # else:
-        #     frame = self.render(self.episode_num, save_image=False, save_path=save_path)
-
-        """ plot each step """
-        # frame = self.render(self.episode_num, save_image=True, save_path=save_path)
         state = np.zeros([10,])
         state[0] = self.needle.x / self.width
         state[1] = self.needle.y / self.height
         state[2] = self.needle.w / math.pi
-        state[3] = self.needle.dx / SCALE
-        state[4] = self.needle.dy / 10
+        state[3] = self.needle.dx / 20
+        state[4] = self.needle.dy / 4
         state[5] = self.needle.dw
         state[6] = 1.0 if self.gates[0].status == 'passed' else 0.0
         state[7] = 1.0 if self.gates[1].status == 'passed' else 0.0
         state[8] = 1.0 if self.gates[2].status == 'passed' else 0.0
         state[9] = 1.0 if self.gates[3].status == 'passed' else 0.0
+
+        """ the old reward function """
+        # reward = self.get_reward(self.status, action, new_damage)
+
+        """ calculate reward """
+        reward = 0
+
+        if self.next_gate is not None:
+            x2gate = state[0] - self.gates[self.next_gate].x / self.width
+            y2gate = state[1] - self.gates[self.next_gate].y / self.height
+            w2gate = (state[3] - 1) - self.gates[self.next_gate].w / math.pi
+        elif self.next_gate is None:
+            """ ultimate destination: x = 1784, y = 2, w = -1/4*pi  """
+            x2gate = state[0] - 1784 / self.width
+            y2gate = state[1] - 2 / self.height
+            w2gate = (state[3] - 1) + 1/4
+
+        dis2gate = np.sqrt(x2gate ** 2 + y2gate ** 2)
+        
+        deviation = 100*state[6] + 100*state[7] + 100*state[8] + 100*state[9]
+
+        """ distance """
+        if self.prev_deviation is not None:
+            reward = deviation - self.prev_deviation - 100*dis2gate - 100*abs(w2gate)
+        self.prev_deviation = deviation
+
+        """ grad of distance """
+#         deviation = - dis2gate - abs(w2gate) + 100*state[6] + 100*state[7] + 100*state[8] + 100*state[9]
+        # if self.prev_deviation is not None:
+        #     reward = deviation - self.prev_deviation
+        # self.prev_deviation = deviation
+
+        reward -= 0.1  ## time penalty
+        reward -=  new_damage   ## tissue damage penalty
+        # print("cyling_penalty: " + str(self.needle.cyling_penalty))
+        reward -= self.needle.cyling_penalty * 10 ## cyling penalty
+        # reward -= abs(self.needle.dw) * 10  ## penalty for frequently change direction
+
+        if self._deep_tissue_intersect():
+            reward = -200.
+
+        self.last_reward = reward
+        self.total_reward += reward
+        self.which_gate = self.next_gate
+
+        # log_f.write('state:{}\n'.format(state))
+        # log_f.write('dis_dev:{}, ang_dev:{}, dev:{}, reward:{}\n'.format(dis2gate, abs(w2gate), deviation, reward))
+        # log_f.flush()
+
+        running = self.check_status()
 
         """ if from image to action """
         # return (frame.unsqueeze(0), reward, not running)
@@ -243,6 +273,86 @@ class Environment:
         """ else from state to action"""
         return state, reward, not running
 
+
+    def GetTargetPoint(self):
+        if self.next_gate is not None:
+            gate_x = self.gates[self.next_gate].x
+            gate_y = self.gates[self.next_gate].y
+        else:
+            """ final end point """
+            gate_x = 1784
+            gate_y = 2
+        dist_x = gate_x - self.needle.x
+        dist_y = gate_y - self.needle.y
+        self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
+        # self.dist = copy.deepcopy(self.dist_pre)
+
+    """ no damage considered currently """
+    def get_reward(self, gate_status, action, new_damage):
+
+        reward = 0.0
+        if self.next_gate is not None:
+            if gate_status == 'passed':
+                reward = 200.
+                # print('Reach the Goal')
+            elif gate_status == 'failed':
+                reward = 100.
+                # print('Failed')
+
+            #################################################
+            ############# dense reward function ############
+            elif gate_status == 'next_gate':
+                gate_x = self.gates[self.next_gate].x
+                gate_y = self.gates[self.next_gate].y
+                dist_x = gate_x - self.needle.x
+                dist_y = gate_y - self.needle.y
+                self.dist_pre = copy.copy(self.dist)
+                self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
+                dd = self.dist_pre - self.dist
+                # reward = dd * math.cos(action[1])
+                reward = dd*0.1
+                """ print for checking """
+                # print("distance: " + str(dd))
+                # print("action: " + str(action))
+                # print("w: " + str(self.needle.w))
+
+        elif self.next_gate is None:
+            """ final end point """
+            gate_x = 1784
+            gate_y = 2
+            dist_x = gate_x - self.needle.x
+            dist_y = gate_y - self.needle.y
+            self.dist_pre = copy.copy(self.dist)
+            self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
+            dd = self.dist_pre - self.dist
+            # reward = dd * math.cos(action[1])
+            reward = dd*0.1
+
+
+        # """ double check """
+        # angle_to_gate = math.pi - math.atan2(dist_y, dist_x)
+        # if angle_to_gate < 0.:
+        #     angle_to_gate += two_pi
+        # self.angle_to_gate = angle_to_gate
+        # delta = math.cos(self.needle.w - angle_to_gate)
+
+        ## 0.25 serves as time penalty
+
+        # print("new_damage: " + str(new_damage))
+
+        ###########################################
+        ########### dense reward function #########
+        reward = reward - new_damage*0.1 - 0.01 - self.needle.cyling_penalty * 50
+
+
+        # print("reward: " + str(reward))
+        # print("gate status: " + str(gate_status))
+
+        if self._deep_tissue_intersect():
+            reward = -200.
+            # print('into tissue')
+
+        return reward
 
     """ new damage caused by this step """
     def _surface_with_needle(self):
@@ -269,38 +379,38 @@ class Environment:
         return s_flag
 
     """ check running status: done or not """
-    def _can_keep_running(self):
-        """
-            verify if the game is in a valid state and we can
-            keep playing
-        """
-        # is the needle off the screen?
-        x = self.needle.x
-        y = self.needle.y
-
-        """ are you in a valid game configuration? """
-        valid_x = x >= 0 and x < self.width
-        valid_y = y >= 0 and y < self.height
-        valid_pos = valid_x and valid_y
-        # if not valid_pos:
-        #     print("Invalid position")
-
-        # have you hit deep tissue?
-        valid_deep = not self._deep_tissue_intersect()
-        # if not valid_deep:
-        #     print("Punctured deep tissue")
-
-        # check if you have caused too much tissue damage
-        valid_damage = self.damage < 100
-        # if not valid_damage:
-        #     print("Caused too much tissue damage")
-
-        # are you out of time?
-        valid_t = self.t < self.max_time
-        # if not valid_t:
-        #     print("Ran out of game time")
-
-        return valid_pos and valid_deep and valid_t and valid_damage
+    # def _can_keep_running(self):
+    #     """
+    #         verify if the game is in a valid state and we can
+    #         keep playing
+    #     """
+    #     # is the needle off the screen?
+    #     x = self.needle.x
+    #     y = self.needle.y
+    #
+    #     """ are you in a valid game configuration? """
+    #     valid_x = x >= 0 and x < self.width
+    #     valid_y = y >= 0 and y < self.height
+    #     valid_pos = valid_x and valid_y
+    #     # if not valid_pos:
+    #     #     print("Invalid position")
+    #
+    #     # have you hit deep tissue?
+    #     valid_deep = not self._deep_tissue_intersect()
+    #     # if not valid_deep:
+    #     #     print("Punctured deep tissue")
+    #
+    #     # check if you have caused too much tissue damage
+    #     valid_damage = self.damage < 100
+    #     # if not valid_damage:
+    #     #     print("Caused too much tissue damage")
+    #
+    #     # are you out of time?
+    #     valid_t = self.t < self.max_time
+    #     # if not valid_t:
+    #     #     print("Ran out of game time")
+    #
+    #     return valid_pos and valid_deep and valid_t and valid_damage
 
     def check_status(self):
         """
@@ -460,85 +570,9 @@ class Environment:
 
         return score
 
-    def GetTargetPoint(self):
-        if self.next_gate is not None:
-            gate_x = self.gates[self.next_gate].x
-            gate_y = self.gates[self.next_gate].y
-        else:
-            """ final end point """
-            gate_x = 1784
-            gate_y = 2
-        dist_x = gate_x - self.needle.x
-        dist_y = gate_y - self.needle.y
-        self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
-        # self.dist = copy.deepcopy(self.dist_pre)
-
-    """ no damage considered currently """
-    def get_reward(self, gate_status, action, new_damage):
-
-        reward = 0.0
-        if self.next_gate is not None:
-            if gate_status == 'passed':
-                reward = 200.
-                # print('Reach the Goal')
-            elif gate_status == 'failed':
-                reward = 100.
-                # print('Failed')
-
-            #################################################
-            ############# dense reward function ############
-            elif gate_status == 'next_gate':
-                gate_x = self.gates[self.next_gate].x
-                gate_y = self.gates[self.next_gate].y
-                dist_x = gate_x - self.needle.x
-                dist_y = gate_y - self.needle.y
-                self.dist_pre = copy.copy(self.dist)
-                self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
-                dd = self.dist_pre - self.dist
-                # reward = dd * math.cos(action[1])
-                reward = dd*0.1
-                """ print for checking """
-                # print("distance: " + str(dd))
-                # print("action: " + str(action))
-                # print("w: " + str(self.needle.w))
-
-        elif self.next_gate is None:
-            """ final end point """
-            gate_x = 1784
-            gate_y = 2
-            dist_x = gate_x - self.needle.x
-            dist_y = gate_y - self.needle.y
-            self.dist_pre = copy.copy(self.dist)
-            self.dist = math.sqrt(float(dist_x * dist_x + dist_y * dist_y))
-            dd = self.dist_pre - self.dist
-            # reward = dd * math.cos(action[1])
-            reward = dd*0.1
 
 
-        # """ double check """
-        # angle_to_gate = math.pi - math.atan2(dist_y, dist_x)
-        # if angle_to_gate < 0.:
-        #     angle_to_gate += two_pi
-        # self.angle_to_gate = angle_to_gate
-        # delta = math.cos(self.needle.w - angle_to_gate)
 
-        ## 0.25 serves as time penalty
-
-        # print("new_damage: " + str(new_damage))
-
-        ###########################################
-        ########### dense reward function #########
-        reward = reward - new_damage*0.1 - 0.01 - self.needle.cyling_penalty * 100
-
-
-        # print("reward: " + str(reward))
-        # print("gate status: " + str(gate_status))
-
-        if self._deep_tissue_intersect():
-            reward = -200.
-            # print('into tissue')
-
-        return reward
 
 
     ############################## for PID controller ########################################
@@ -862,7 +896,7 @@ class Needle:
         self.poly = Polygon(self.corners)
 
     """ API for reinforcement learning, mapping action to real motion """
-    def action2motion (self, action):
+    def action2motion (self, action, log_f):
         """
            action = [main engine, up-down engine]
            needle is set to moving from left to right (constant value)
@@ -876,28 +910,32 @@ class Needle:
         self.dx = 0.0
         self.dy = 0.0
         self.dw = 0.0
-        if action[0] > 0:
-            dX = CONST + action[0] * VEL_SCALE
-        else:
-            dX = CONST
+        # if action[0] > 0:
+        dX = CONST + action[0] * VEL_SCALE
+        # else:
+        #     dX = CONST
 
-        if np.abs(action[1]) < 0.5:
-            action[1] = action[1] * ANG_SCALE
-            ox = math.cos(w + action[1] - pi) * dX
-            oy = - math.sin(w + action[1] -pi) *  dX
-            self.dx += ox
-            self.dy += oy
-            self.dw = action[1]
-        else:
-            ox = math.cos(w - pi) *  dX
-            oy = - math.sin(w - pi) * dX
-            self.dx += ox
-            self.dy += oy
+        # if np.abs(action[1]) < 0.5:
+        action[1] = action[1] * ANG_SCALE
+        ox = math.cos(w + action[1] - pi) * dX
+        oy = - math.sin(w + action[1] -pi) * dX
+        self.dx = ox
+        self.dy = oy
+        self.dw = action[1]
+        # else:
+        #     ox = math.cos(w - pi) * dX
+        #     oy = - math.sin(w - pi) * dX
+        #     self.dx += ox
+        #     self.dy += oy
+
+        # log_f.write('action_1:{}, action_2:{}, dX:{}\n'.format(action[0], action[1], dX))
+        # log_f.write('dx:{}, dy:{}, dw:{}\n'.format(self.dx, self.dy, self.dw))
+        # log_f.flush()
 
         return
 
 
-    def move(self, action, needle_in_tissue):
+    def move(self, action, needle_in_tissue, log_f):
         """
             Given an input, move the needle. Update the position, orientation,
             and thread path in android game movement is specified by touch
@@ -913,7 +951,7 @@ class Needle:
 
         """
 
-        self.action2motion(action)
+        self.action2motion(action, log_f)
 
         if needle_in_tissue:
             self.dw = 0.5 * self.dw
@@ -921,15 +959,16 @@ class Needle:
                 self.dw = 0.02 * np.sign(self.dw)
 
         self.w = self.w + self.dw
-        if self.w > two_pi:
+        if abs(self.w) > 2* math.pi:
             self.cyling_penalty += 1
-            self.w = self.w - two_pi
+            # print("here...")
+            self.w -= np.sign(self.w)*two_pi
 
         """ clip w to -pi to pi """
         # self.w = np.clip(self.w, 1/2*math.pi, 3/2*math.pi )
 
-        self.x = self.x + self.dx
-        self.y = self.y - self.dy
+        self.x += self.dx
+        self.y -= self.dy
 
         self._compute_corners()
         self.poly = Polygon(self.corners)
