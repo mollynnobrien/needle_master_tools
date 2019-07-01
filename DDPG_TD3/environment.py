@@ -24,8 +24,7 @@ from shapely.geometry import Polygon, Point # using to replace sympy
 two_pi = math.pi * 2
 pi = math.pi
 SCALE = 30
-ANG_SCALE = 1/10 * pi
-VEL_SCALE = 20
+VEL_SCALE = 50
 """
    CONST: different value for different env:
    level_1: 100,
@@ -34,7 +33,11 @@ VEL_SCALE = 20
    level_15: 20,
    level_17: 26.
 """
-CONST = 40
+CONST = 100
+
+angle_start = 1 / 20 * pi
+angle_final = 1 / 4 * pi
+increase_rate = 250000
 
 
 def safe_load_line(name,handle):
@@ -211,13 +214,24 @@ class Environment:
             self.GetTargetPoint()
 
         needle_surface = self._surface_with_needle()
-        self.needle.move(action, needle_surface, log_f)
+        self.needle.move(action, needle_surface, self.total_timesteps, log_f)
         new_damage = self._get_new_damage(action, needle_surface)
 
         self.t += 1
 
+        if self.next_gate is not None:
+            gate_x = self.gates[self.next_gate].x / self.width
+            gate_y = self.gates[self.next_gate].y / self.height
+            gate_w = self.gates[self.next_gate].w / math.pi
+        elif self.next_gate is None:
+            """ ultimate destination: x = previous gate.x + 100, y = previous gate.y, w = pi  """
+            gate_x = (self.gates[len(self.gates)-1].x + 100) / self.width
+            gate_y = (self.gates[len(self.gates)-1].y + 100) / self.height
+            gate_w = 1
+
+
         n = len(self.gates)
-        state = np.zeros([6+n,])
+        state = np.zeros([9 + n,])
         state[0] = self.needle.x / self.width
         state[1] = self.needle.y / self.height
         state[2] = self.needle.w / math.pi
@@ -225,7 +239,11 @@ class Environment:
         state[4] = self.needle.dy / 4
         state[5] = self.needle.dw
         for ii in range(n):
-            state[6+ii] = 1.0 if self.gates[ii].status == 'passed' or self.gates[ii].status == 'failed' else 0.0
+            state[6+ii] = 1.0 if self.gates[ii].status == 'passed' else 0.0
+        state[6 + n] = gate_x
+        state[7 + n] = gate_y
+        state[8 + n] = gate_w
+
 
         """ the old reward function """
         # reward = self.get_reward(self.status, action, new_damage)
@@ -233,27 +251,31 @@ class Environment:
         """ calculate reward """
         reward = 0
 
-        if self.next_gate is not None:
-            x2gate = state[0] - self.gates[self.next_gate].x / self.width
-            y2gate = state[1] - self.gates[self.next_gate].y / self.height
-            w2gate = (state[3] - 1) - self.gates[self.next_gate].w / math.pi
-        elif self.next_gate is None:
-            """ ultimate destination: x = previous gate.x + 100, y = previous gate.y, w = pi  """
-            x2gate = state[0] - (self.gates[len(self.gates)-1].x + 100) / self.width
-            y2gate = state[1] - (self.gates[len(self.gates)-1].y + 100) / self.height
-            w2gate = state[3] - 1 - 1
+        # if self.next_gate is not None:
+        #     x2gate = state[0] - self.gates[self.next_gate].x / self.width
+        #     y2gate = state[1] - self.gates[self.next_gate].y / self.height
+        #     w2gate = (state[3] - 1) - self.gates[self.next_gate].w / math.pi
+        # elif self.next_gate is None:
+        #     """ ultimate destination: x = previous gate.x + 100, y = previous gate.y, w = pi  """
+        #     x2gate = state[0] - (self.gates[len(self.gates)-1].x + 100) / self.width
+        #     y2gate = state[1] - (self.gates[len(self.gates)-1].y + 100) / self.height
+        #     w2gate = state[3] - 1 - 1
+
+        x2gate = state[0] - gate_x
+        y2gate = state[1] - gate_y
+        w2gate = (state[3] - 1) - gate_w
 
         dis2gate = np.sqrt(x2gate ** 2 + y2gate ** 2)
 
         """ distance """
         """ !proves not right! """
-#         deviation = 200 * np.sum(state[6:len(state)])
-#         if self.prev_deviation is not None:
-#             reward = deviation - self.prev_deviation - dis2gate - abs(w2gate)
-#         self.prev_deviation = deviation
+        # deviation = 200 * np.sum(state[6:len(state)])
+        # if self.prev_deviation is not None:
+        #     reward = deviation - self.prev_deviation - dis2gate - abs(w2gate)
+        # self.prev_deviation = deviation
 
         """ grad of distance """
-        deviation = - 10 * dis2gate - 10 * abs(w2gate) + 200 * np.sum(state[6:len(state)])
+        deviation = - 0.1 * dis2gate - 0.5 * abs(w2gate) + 400 * np.sum(state[6:len(state)])
         if self.prev_deviation is not None:
             reward = deviation - self.prev_deviation
         self.prev_deviation = deviation
@@ -264,10 +286,10 @@ class Environment:
 #             reward = deviation - self.prev_deviation
 #         self.prev_deviation = deviation
 
-#         reward -= 0.1  ## time penalty
-#         reward -=  new_damage   ## tissue damage penalty
+        # reward -= 0.1  ## time penalty
+        reward -=  new_damage   ## tissue damage penalty
         # print("cyling_penalty: " + str(self.needle.cyling_penalty))
-#         reward -= self.needle.cyling_penalty ## cyling penalty
+        reward -= self.needle.cyling_penalty * 10 ## cyling penalty
         # reward -= abs(self.needle.dw) * 10  ## penalty for frequently change direction
 
         if self._deep_tissue_intersect():
@@ -827,7 +849,7 @@ class Needle:
         self.poly = Polygon(self.corners)
 
     """ API for reinforcement learning, mapping action to real motion """
-    def action2motion (self, action, log_f):
+    def action2motion (self, action, iteration, log_f):
         """
            action = [main engine, up-down engine]
            needle is set to moving from left to right (constant value)
@@ -843,23 +865,25 @@ class Needle:
         self.dw = 0.0
 
         """ 2 dimension action """
-        if action[0] > 0:
-            dX = CONST + action[0] * VEL_SCALE
-        else:
-            dX = CONST
+        # if action[0] > 0:
+        dX = CONST + action[0] * VEL_SCALE
+        # else:
+        #     dX = CONST
         
-        if np.abs(action[1]) > 0.5:
-            action[1] = action[1] * ANG_SCALE
-            ox = math.cos(w + action[1] - pi) * dX
-            oy = - math.sin(w + action[1] -pi) * dX
-            self.dx = ox
-            self.dy = oy
-            self.dw = action[1]
-        else:
-            ox = math.cos(w - pi) * dX
-            oy = - math.sin(w - pi) * dX
-            self.dx += ox
-            self.dy += oy
+        # if np.abs(action[1]) > 0.2:
+        ANG_SCALE = angle_final - (angle_final - angle_start) * math.exp(-1. * iteration / increase_rate)
+        # ANG_SCALE = 1 / 4 * pi
+        action[1] = action[1] * ANG_SCALE
+        ox = math.cos(w + action[1] - pi) * dX
+        oy = - math.sin(w + action[1] -pi) * dX
+        self.dx = ox
+        self.dy = oy
+        self.dw = action[1]
+        # else:
+        #     ox = math.cos(w - pi) * dX
+        #     oy = - math.sin(w - pi) * dX
+        #     self.dx += ox
+        #     self.dy += oy
 
         # # """ one dimension action """
         # dX = CONST
@@ -878,7 +902,7 @@ class Needle:
         return
 
 
-    def move(self, action, needle_in_tissue, log_f):
+    def move(self, action, needle_in_tissue, iteration, log_f):
         """
             Given an input, move the needle. Update the position, orientation,
             and thread path in android game movement is specified by touch
@@ -894,7 +918,7 @@ class Needle:
 
         """
 
-        self.action2motion(action, log_f)
+        self.action2motion(action, iteration, log_f)
 
         if needle_in_tissue:
             self.dw = 0.5 * self.dw
@@ -951,15 +975,17 @@ class PID:
         local_y = (gate_x - needle[0]) * np.sin(needle[2]) + (gate_y - needle[1]) * np.cos(needle[2])
         return [local_x,  local_y]
 
-    def PIDcontroller(self, needle_pos, next_gate, gates):
+    def PIDcontroller(self, needle_pos, next_gate, gates , iteration):
         X = self.GetSelfState(needle_pos)
         X_t = self.GetGoalState(needle_pos, next_gate, gates)
 
         # """ two dimention action """
         action = np.array(X_t) * np.array(self.parameters)
+        # ANG_SCALE = angle_final - (angle_final - angle_start) * math.exp(-1. * iteration / increase_rate)
 
-        action[0] = (action[0] - CONST) / 50
-        action[1] = action[1] / ANG_SCALE
+        # action[0] = (action[0] - CONST) / 50
+        # action[0] = action[0] / VEL_SCALE
+        # action[1] = action[1] / (1/10 * pi)
         action = action.clip([-1,-1], [1,1])
 
         return action

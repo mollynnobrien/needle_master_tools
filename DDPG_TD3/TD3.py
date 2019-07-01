@@ -177,7 +177,7 @@ class TD3(object):
 			if it % policy_freq == 0:
 
 				# Compute actor loss
-				actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+				actor_loss = - self.critic.Q1(state, self.actor(state)).mean()
 				self.actor_loss.append(actor_loss)
 				
 				# Optimize the actor 

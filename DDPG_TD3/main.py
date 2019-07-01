@@ -6,6 +6,7 @@ import random
 from environment import Environment
 from environment import PID
 import utils
+import TD3_priorized
 import TD3
 import math
 import matplotlib.pyplot as plt
@@ -29,8 +30,8 @@ def evaluate_policy(policy, log_f):
         action = policy.select_action(state)
         # print("state: " + str(state))
         # print("action: " + str(action))
-        next_state, reward, done = env.step(action, log_f)
-        # print("next state: " + str(next_state))
+        new_state, reward, done = env.step(action, log_f)
+        # print("next state: " + str(new_state))
         # print("done: " +str(done))
         env.episode_reward += reward
         state = new_state
@@ -68,22 +69,22 @@ if __name__ == "__main__":
     parser.add_argument("--policy_name", default="TD3")  # Policy name
     parser.add_argument("--env_name", default="NeedleMaster")  # OpenAI gym environment name
     parser.add_argument("--seed", default=1e6, type=int)  # Sets Gym, PyTorch and Numpy seeds
-    parser.add_argument("--pid_interval", default=1e3, type=int)  # How many time steps purely random policy is run for
-    parser.add_argument("--eval_freq", default=5e4, type=float)  # How often (time steps) we evaluate
-    parser.add_argument("--pid_freq", default=5e3, type=int)  # How often we get back to pure random action
-    parser.add_argument("--max_timesteps", default=1e3, type=float)  # Max time steps to run environment for
+    parser.add_argument("--pid_interval", default=5e3, type=int)  # How many time steps purely random policy is run for
+    parser.add_argument("--eval_freq", default=5e3, type=float)  # How often (time steps) we evaluate
+    parser.add_argument("--pid_freq", default=1e4, type=int)  # How often we get back to pure random action
+    parser.add_argument("--max_timesteps", default=1e5, type=float)  # Max time steps to run environment for
     parser.add_argument("--save_models", action= "store" )  # Whether or not models are saved
     parser.add_argument("--expl_noise", default=1, type=float)  # Std of Gaussian exploration noise
-    parser.add_argument("--batch_size", default=1000, type=int)  # Batch size for both actor and critic
+    parser.add_argument("--batch_size", default=100, type=int)  # Batch size for both actor and critic
     parser.add_argument("--discount", default=0.99, type=float)  # Discount factor
     parser.add_argument("--tau", default=0.005, type=float)  # Target network update rate
     parser.add_argument("--policy_noise", default=0.2, type=float)  # Noise added to target policy during critic update
     parser.add_argument("--noise_clip", default=0.5, type=float)  # Range to clip target policy noise
     parser.add_argument("--policy_freq", default=2, type=int)  # Frequency of delayed policy updates
-    parser.add_argument("--max_size", default=2e3, type=int)  # Frequency of delayed policy updates
+    parser.add_argument("--max_size", default=5e3, type=int)  # Frequency of delayed policy updates
     args = parser.parse_args()
 
-    env_name = 'environment_14'
+    env_name = 'environment_15'
     env_path = 'C:/Users/icage/needle_master_tools-lifan/environments/' + env_name + '.txt'
     file_name = "%s_%s_%s" % (env_name,args.policy_name, args.env_name)
     print ("---------------------------------------")
@@ -112,19 +113,31 @@ if __name__ == "__main__":
     logfile = "%s_%s_%s" % (env_name, args.policy_name, args.env_name)
     log_f = open("log_"+logfile+".txt","w+")
 
+    """ setting up environment """
     action_dim = 2
     env = Environment(action_dim, log_f,env_path)
-    # env.GetTargetPoint()
-    state_dim = len(env.gates) + 6
-    """"  for PID controller """
+    state_dim = len(env.gates) + 9
+
+    """" setting up PID controller """
     action_constrain = [10, np.pi/20]
-    parameter = [0.1,0.0009]
+    # parameter = [0.1,0.0009]
+    parameter =  [0.0000001, 0.5]
     pid = PID( parameter, env.width, env.height )
 
-    """ [lower bound],[higher bound] """
-    env.action_bound = np.array((-1,1)) ## for one dimension action
-    # env.action_bound = np.array(([-1, -1],[1, 1]))  ## for two dimension action
+    """ setting up action bound for RL """
+    # env.action_bound = np.array((-1,1)) ## for one dimension action
+    env.action_bound = np.array(([0, -1],[1, 1]))  ## for two dimension action
     max_action = 1
+
+    """ parameters for epsilon declay """
+    epsilon_start = 1
+    epsilon_final = 0.01
+    decay_rate = 2000
+    ep_decay = []
+
+    """ beta Prioritized Experience Replay"""
+    beta_start = 0.4
+    beta_frames = 100000
 
     ### for plotting
     Reward = []
@@ -133,14 +146,16 @@ if __name__ == "__main__":
     evaluations = []
 
     # Initialize policy
-    policy = TD3.TD3(state_dim, action_dim, max_action)
-    replay_buffer = utils.ReplayBuffer(args.max_size)
+    policy = TD3_priorized.TD3(state_dim, action_dim, max_action)
+    # replay_buffer = utils.ReplayBuffer(args.max_size)
+    replay_buffer = utils.NaivePrioritizedBuffer(int(args.max_size))
 
     # Evaluate untrained policy
     # evaluations = [evaluate_policy(policy)]
 
     env.total_timesteps = 0
     timesteps_since_eval = 0
+    pid_assist = 0
     done = True
 
     while env.total_timesteps < args.max_timesteps:
@@ -177,7 +192,8 @@ if __name__ == "__main__":
                     env.render( save_image=True, save_path=save_path)
 
             if env.total_timesteps != 0:
-                policy.train(replay_buffer, episode_timesteps, args.batch_size, args.discount, args.tau, args.policy_noise, args.noise_clip, args.policy_freq)
+                beta = min(1.0, beta_start + env.total_timesteps * (1.0 - beta_start) / beta_frames)
+                policy.train(replay_buffer, episode_timesteps, beta, args.batch_size, args.discount, args.tau, args.policy_noise, args.noise_clip, args.policy_freq)
 
             Reward.append(env.episode_reward)
 
@@ -190,45 +206,58 @@ if __name__ == "__main__":
             env.episode_reward = 0
             episode_timesteps = 0
 
-            # """ exploration rate decay """
-            # if env.total_timesteps % 1000 == 0 and args.expl_noise > 0:
-            #     args.expl_noise -= 0.05
+        """ exploration rate decay """
+        args.expl_noise = epsilon_final + (epsilon_start - epsilon_final) * math.exp(-1. * env.total_timesteps / decay_rate)
+        ep_decay.append(args.expl_noise)
+        log_f.write('epsilon decay:{}\n'.format(args.expl_noise))
+
+        # if env.total_timesteps % 500 == 0 and args.expl_noise > 0:
+        #     args.expl_noise *= 0.9
 
         """ alternative between pid and policy  """
-        if env.total_timesteps % args.pid_freq < args.pid_interval:
-        # if env.total_timesteps < args.pid_interval:
-            state_pid = state[0:3]
-            action = pid.PIDcontroller( state_pid, env.next_gate, env.gates)
-            # action = env.sample_action()
-            # log_f.write('~~~~~~~~~~~random action~~~~~~~~~~\n')
-            # log_f.write('random selected action:{}\n'.format(action))
+        # if env.last_reward > 200:
+        #     print("assited... ")
+        # # if env.total_timesteps < args.pid_interval:
+        #     state_pid = state[0:3]
+        #     action = pid.PIDcontroller( state_pid, env.next_gate, env.gates)
+        #     log_f.write('PID Action:{}\n'.format(action))
+        #
+        #     # action = env.sample_action()
+        #     # log_f.write('~~~~~~~~~~~random action~~~~~~~~~~\n')
+        #     # log_f.write('random selected action:{}\n'.format(action))
+        #
+        # else:
+        #     # print("state: " +str(state))
+        #     pid_assist = 0
+        #     action = policy.select_action(state)
+        #     # print("select")
+        #     # log_f.write('~~~~~~~~~~~selected action~~~~~~~~~~\n')
+        #     log_f.write('Action based on policy:{}\n'.format(action))
+        #     # print("action based on policy:" + str(action))
+        #     # print("action selected: " +str(action))
+        #     if args.expl_noise != 0:
+        #         noise = np.random.normal(0, args.expl_noise, size=action_dim)
+        #         # print("noise: " + str(noise))
+        #         action = (action + noise).clip(-1, 1)
 
-        else:
-            # print("state: " +str(state))
-            action = policy.select_action(state)
-            # print("select")
-            # log_f.write('~~~~~~~~~~~selected action~~~~~~~~~~\n')
-            log_f.write('Action based on policy:{}\n'.format(action))
-            # print("action based on policy:" + str(action))
-            # print("action selected: " +str(action))
-        if args.expl_noise != 0:
-            noise = np.random.normal(0, args.expl_noise, size=action_dim)
-            # print("noise: " + str(noise))
-            action = (action + noise).clip(-1, 1)
-
-        """ using PID controller """
+        # """ using PID controller """
         # state_pid = state[0:3]
-        # action = pid.PIDcontroller( state_pid, env.next_gate, env.gates)
+        # action = pid.PIDcontroller( state_pid, env.next_gate, env.gates, env.total_timesteps)
         # print("action based on PID: " + str(action))
 
         """ action selected based on pure policy """
-        # action = policy.select_action(state)
-        # log_f.write('action based on policy:{}\n'.format(action))
-        # # print("action based on policy:" + str(action))
-        # if args.expl_noise != 0:
-        #     noise = np.random.normal(0, args.expl_noise, size=action_dim)
-        #     # print("noise: " + str(noise))
-        #     action = (action + noise).clip(-1,1)
+        action = policy.select_action(state)
+        log_f.write('action based on policy:{}\n'.format(action))
+        # print("action based on policy:" + str(action))
+        if args.expl_noise != 0:
+            state_pid = state[0:3]
+            guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, env.total_timesteps)
+            # noise = np.random.normal(0, args.expl_noise, size=action_dim)
+            # print("noise: " + str(noise))
+            action = ((1 - args.expl_noise) * action + args.expl_noise * guidance)
+            # action = action + noise
+            action[0] = np.clip(action[0],0,1)
+            action[1] = np.clip(action[1],-1,1)
 
 
         # Perform action
@@ -238,7 +267,7 @@ if __name__ == "__main__":
         env.episode_reward += reward
 
         # Store data in replay buffer
-        replay_buffer.add((state, new_state, action, reward, done_bool))
+        replay_buffer.add(state, new_state, action, reward, done_bool)
         # print("state: " + str(state))
         state = new_state
 
@@ -255,6 +284,11 @@ if __name__ == "__main__":
     plt.plot(range(len(policy.critic_loss)), policy.critic_loss, 'b')
     plt.savefig('./results/critic loss.png')
 
+    plt.plot(range(len(ep_decay)), np.array(ep_decay), 'b')
+    plt.savefig('./results/ep_decay.png')
+
     plt.plot(range(len(evaluations)), np.array(evaluations), 'b')
     plt.savefig('./results/evaluation reward.png')
     print(evaluations)
+
+

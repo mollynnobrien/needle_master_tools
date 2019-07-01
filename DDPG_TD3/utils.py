@@ -10,7 +10,8 @@ class ReplayBuffer(object):
 		self.max_size = max_size
 		self.ptr = 0
 
-	def add(self, data):
+	def add(self, state, new_state, action, reward, done_bool):
+		data = (state, new_state, action, reward, done_bool)
 		if len(self.storage) == self.max_size:
 			self.storage[int(self.ptr)] = data
 			self.ptr = (self.ptr + 1) % self.max_size
@@ -30,3 +31,60 @@ class ReplayBuffer(object):
 			d.append(np.array(D, copy=False))
 
 		return np.array(x), np.array(y), np.array(u), np.array(r).reshape(-1, 1), np.array(d).reshape(-1, 1)
+
+
+class NaivePrioritizedBuffer(object):
+	def __init__(self, capacity, prob_alpha=0.6):
+		self.prob_alpha = prob_alpha
+		self.capacity = capacity
+		self.buffer = []
+		self.pos = 0
+		self.priorities = np.zeros((capacity,), dtype=np.float32)
+
+	def add(self, state, next_state, action, reward, done):
+		assert state.ndim == next_state.ndim
+		state = np.expand_dims(state, 0)
+		next_state = np.expand_dims(next_state, 0)
+
+		max_prio = self.priorities.max() if self.buffer else 1.0
+
+		if len(self.buffer) < self.capacity:
+			self.buffer.append((state, next_state, action, reward, done))
+		else:
+			self.buffer[self.pos] = (state, next_state, action, reward, done)
+
+		self.priorities[self.pos] = max_prio
+		self.pos = (self.pos + 1) % self.capacity
+
+	def sample(self, batch_size, beta=0.4):
+		if len(self.buffer) == self.capacity:
+			prios = self.priorities
+		else:
+			prios = self.priorities[:self.pos]
+
+		probs = prios ** self.prob_alpha
+		probs /= probs.sum()
+
+		indices = np.random.choice(len(self.buffer), batch_size, p=probs)
+		samples = [self.buffer[idx] for idx in indices]
+
+		total = len(self.buffer)
+		weights = (total * probs[indices]) ** (-beta)
+		weights /= weights.max()
+		weights = np.array(weights, dtype=np.float32)
+
+		batch = list(zip(*samples))
+		states = np.concatenate(batch[0])
+		actions = batch[2]
+		rewards = batch[3]
+		next_states = np.concatenate(batch[1])
+		dones = batch[4]
+
+		return np.array(states), np.array(next_states), np.array(actions), np.array(rewards).reshape(-1, 1), np.array(dones).reshape(-1, 1), indices, weights
+
+	def update_priorities(self, batch_indices, batch_priorities):
+		for idx, prio in list(zip(batch_indices, batch_priorities)):
+			self.priorities[idx] = prio
+
+	def __len__(self):
+		return len(self.buffer)
