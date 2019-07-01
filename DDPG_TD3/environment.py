@@ -37,7 +37,11 @@ CONST = 100
 
 angle_start = 1 / 20 * pi
 angle_final = 1 / 4 * pi
-increase_rate = 250000
+increase_rate = 25000
+
+linear_start = 100
+linear_final = 20
+decay_rate = 25000
 
 
 def safe_load_line(name,handle):
@@ -287,7 +291,7 @@ class Environment:
 #         self.prev_deviation = deviation
 
         # reward -= 0.1  ## time penalty
-        reward -=  new_damage   ## tissue damage penalty
+        reward -=  new_damage * 5   ## tissue damage penalty
         # print("cyling_penalty: " + str(self.needle.cyling_penalty))
         reward -= self.needle.cyling_penalty * 10 ## cyling penalty
         # reward -= abs(self.needle.dw) * 10  ## penalty for frequently change direction
@@ -866,6 +870,7 @@ class Needle:
 
         """ 2 dimension action """
         # if action[0] > 0:
+        CONST = linear_final + (linear_start - linear_final) * math.exp(-1. * iteration / decay_rate)
         dX = CONST + action[0] * VEL_SCALE
         # else:
         #     dX = CONST
