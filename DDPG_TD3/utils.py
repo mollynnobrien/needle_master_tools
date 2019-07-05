@@ -42,6 +42,8 @@ class NaivePrioritizedBuffer(object):
 		self.priorities = np.zeros((capacity,), dtype=np.float32)
 
 	def add(self, state, next_state, action, reward, done):
+		state = state.numpy()
+		next_state = next_state.numpy()
 		assert state.ndim == next_state.ndim
 		state = np.expand_dims(state, 0)
 		next_state = np.expand_dims(next_state, 0)
