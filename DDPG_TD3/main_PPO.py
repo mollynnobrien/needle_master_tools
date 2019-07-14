@@ -4,8 +4,8 @@ import torch
 import argparse
 import os
 import random
-from .environment_PPO import Environment
-from .environment import PID
+from environment_PPO import Environment
+from environment import PID
 
 # from .environment_PPO import Environment
 # from .environment import PID
@@ -109,14 +109,14 @@ if __name__ == "__main__":
     print(args.policy_name)
     if args.policy_name == 'state':
         print("here")
-        from .PPO import PPO
-        from .PPO import Memory
+        from PPO import PPO
+        from PPO import Memory
         print("here")
         memory = Memory()
         policy = PPO(state_dim, action_dim, args.action_std, args.lr, args.betas, args.gamma, args.K_epochs, args.eps_clip)
     elif args.policy_name == 'image':
-        from .PPO_image import PPO
-        from .PPO_image import Memory
+        from PPO_image import PPO
+        from PPO_image import Memory
         memory = Memory()
         policy = PPO(img_stack, action_dim, args.action_std, args.lr, args.betas, args.gamma, args.K_epochs,
                      args.eps_clip)
