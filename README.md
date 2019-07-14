@@ -8,6 +8,7 @@ To run DQN on an example environment, call
 `python3 -m rainbow_dqn.main data/environment_14.txt`
 
 To run PPO on an example envrionment, go to lifan2/DDPG_TD3, call
-`python -m main_PPO [data/environment_14.txt(choose environment)] [image or state(choose to use state or image)]`
+`python3 -m main_PPO [data/environment_14.txt(choose environment)] [image or state(choose to use state or image)]`
 
-
+To run PPO from image cat state on an example envrionment, go to lifan2/DDPG_TD3, call
+`python3 -m main_PPO_image_state [data/environment_14.txt(choose environment)]`
