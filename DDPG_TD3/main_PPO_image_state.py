@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_timesteps", default=1e8, type=float)  # Max time steps to run environment for
     parser.add_argument("--save_models", action= "store" )  # Whether or not models are saved
     parser.add_argument("--batch_size", default=100, type=int)  # Batch size for both actor and critic
-    parser.add_argument("--update_timestep", default=4000, type=int)  # Update policy every n timesteps
+    parser.add_argument("--update_timestep", default=2000, type=int)  # Update policy every n timesteps
     parser.add_argument("--action_std", default=0.6, type=float)  # Constant std for action distribution
     parser.add_argument("--lr", default=0.0025, type=float)
     parser.add_argument("--betas", default=(0.9, 0.999))
