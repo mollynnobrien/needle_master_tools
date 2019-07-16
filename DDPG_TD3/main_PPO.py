@@ -50,7 +50,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         args.device = torch.device('cuda')
         torch.cuda.manual_seed(random.randint(1, 10000))
-        torch.backends.cudnn.enabled = False  # Disable nondeterministic ops (not sure if critical but better safe than sorry)
+        #torch.backends.cudnn.enabled = False  # Disable nondeterministic ops (not sure if critical but better safe than sorry)
     else:
         args.device = torch.device('cpu')
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     ## environment set up
 
     """ Adding the log file """
-    logfile = "%s_%s_%s" % (env_name, args.policy_name, args.env_name)
+    logfile = "log_%s_%s_%s.txt" % (env_name, args.policy_name, args.env_name)
     log_f = open(logfile,"w+")
 
     """ setting up environment """
@@ -115,12 +115,7 @@ if __name__ == "__main__":
         from PPO_image import PPO
         from PPO_image import Memory
         memory = Memory()
-        policy = PPO(img_stack, action_dim, args.action_std, args.lr, args.betas, args.gamma, args.K_epochs,
-                     args.eps_clip)
-
-
-    # policy = PPO(state_dim, action_dim, args.action_std, args.lr, args.betas, args.gamma, args.K_epochs, args.eps_clip)
-    # policy = PPO(img_stack, action_dim, args.action_std, args.lr, args.betas, args.gamma, args.K_epochs, args.eps_clip)
+        policy = PPO(img_stack, action_dim, args.action_std, args.lr, args.betas, args.gamma, args.K_epochs, args.eps_clip)
 
     env.total_timesteps = 0
     timesteps_since_eval = 0
@@ -150,7 +145,7 @@ if __name__ == "__main__":
                 if env.episode_num % 40 == 0:
                     print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (
                         env.total_timesteps, env.episode_num, episode_timesteps, env.episode_reward))
-                    env.render( save_image = True, mode = 'gray_array', save_path = save_path)
+                    #env.render( save_image = True, mode = 'gray_array', save_path = save_path)
 
             Reward.append(env.episode_reward)
 
@@ -166,7 +161,7 @@ if __name__ == "__main__":
 
         """ action selected based on pure policy """
         action = policy.select_action(state, memory)
-        # log_f.write('action based on policy:{}\n'.format(action))
+        log_f.write('action based on policy:{}\n'.format(action))
 
         # Perform action
         new_state, reward, done = env.step(action, log_f)
