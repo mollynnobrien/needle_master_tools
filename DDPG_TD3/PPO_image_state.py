@@ -7,7 +7,7 @@ import numpy as np
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 feat_size = 4
-latent_dim = feat_size**2 * 64
+latent_dim = feat_size**2 * 128
 
 ## Utilities
 class Flatten(torch.nn.Module):
@@ -35,36 +35,36 @@ class ActorCritic(nn.Module):
 		# action mean range -1 to 1
 
 		self.encoder = nn.Sequential(  ## input size:[224, 224]
-			nn.Conv2d(img_stack, 8, 5, 4, padding=2),  ## output size: [8, 56, 56]
-			nn.ReLU(),
-			nn.BatchNorm2d(8),
-			nn.Conv2d(8, 16, 5, 2, padding=2),  ## output size: [16, 28, 28]
+			nn.Conv2d(img_stack, 16, 5, 4, padding=2),  ## output size: [16, 56, 56]
 			nn.ReLU(),
 			nn.BatchNorm2d(16),
-			nn.Conv2d(16, 32, 5, 2, padding=2),  ## output size: [32, 14, 14]
+			nn.Conv2d(16, 32, 5, 2, padding=2),  ## output size: [32, 28, 28]
 			nn.ReLU(),
 			nn.BatchNorm2d(32),
-			nn.Conv2d(32, 64, 5, 4, padding=2),  ## output size: [64, 4, 4]
+			nn.Conv2d(32, 64, 5, 2, padding=2),  ## output size: [64, 14, 14]
 			nn.ReLU(),
 			nn.BatchNorm2d(64),
-			Flatten(),  ## output: 1024
+			nn.Conv2d(64, 128, 5, 4, padding=2),  ## output size: [128, 4, 4]
+			nn.ReLU(),
+			nn.BatchNorm2d(128),
+			Flatten(),  ## output: 2048
 		)
 
 		self.actor = nn.Sequential(
-			nn.Linear(latent_dim + state_dim, 40),
+			nn.Linear(latent_dim + state_dim, 400),
 			nn.Tanh(),
-			nn.Linear(40, 30),
+			nn.Linear(400, 300),
 			nn.Tanh(),
-			nn.Linear(30, action_dim),
+			nn.Linear(300, action_dim),
 			nn.Tanh()
 		)
 		# critic
 		self.critic = nn.Sequential(
-			nn.Linear(latent_dim + state_dim, 40),
+			nn.Linear(latent_dim + state_dim, 400),
 			nn.Tanh(),
-			nn.Linear(40, 30),
+			nn.Linear(400, 300),
 			nn.Tanh(),
-			nn.Linear(30, 1)
+			nn.Linear(300, 1)
 		)
 		self.action_var = torch.full((action_dim,), action_std * action_std).to(device)
 

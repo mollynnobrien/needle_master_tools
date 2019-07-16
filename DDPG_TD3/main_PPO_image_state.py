@@ -20,10 +20,10 @@ if __name__ == "__main__":
     parser.add_argument("--pid_interval", default=5e3, type=int)  # How many time steps purely random policy is run for
     parser.add_argument("--eval_freq", default=5e3, type=float)  # How often (time steps) we evaluate
     parser.add_argument("--pid_freq", default=1e4, type=int)  # How often we get back to pure random action
-    parser.add_argument("--max_timesteps", default=1e8, type=float)  # Max time steps to run environment for
+    parser.add_argument("--max_timesteps", default=1e6, type=float)  # Max time steps to run environment for
     parser.add_argument("--save_models", action= "store" )  # Whether or not models are saved
     parser.add_argument("--batch_size", default=100, type=int)  # Batch size for both actor and critic
-    parser.add_argument("--update_timestep", default=2000, type=int)  # Update policy every n timesteps
+    parser.add_argument("--update_timestep", default=1000, type=int)  # Update policy every n timesteps
     parser.add_argument("--action_std", default=0.6, type=float)  # Constant std for action distribution
     parser.add_argument("--lr", default=0.0025, type=float)
     parser.add_argument("--betas", default=(0.9, 0.999))
@@ -129,10 +129,9 @@ if __name__ == "__main__":
                 log_f.write('Total:{}, Episode Num:{}, Eposide:{}, Reward:{}\n'.format(env.total_timesteps, env.episode_num, episode_timesteps, env.episode_reward))
                 log_f.flush()
 
-                if env.episode_num % 1 == 0:
+                if env.episode_num % 40 == 0:
                     print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (
                         env.total_timesteps, env.episode_num, episode_timesteps, env.episode_reward))
-                if env.episode_reward > -200:
                     env.render( save_image=True, mode = 'gray_array', save_path=save_path)
 
             Reward.append(env.episode_reward)

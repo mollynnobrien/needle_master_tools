@@ -32,7 +32,7 @@ class ActorCritic(nn.Module):
 		# action mean range -1 to 1
 
 		self.encoder = nn.Sequential(  ## input size:[224, 224]
-			nn.Conv2d(img_stack, 16, 5, 4, padding=2),  ## output size: [16, 56, 56]
+			nn.Conv2d(img_stack * 3, 16, 5, 4, padding=2),  ## output size: [16, 56, 56]
 			nn.ReLU(),
 			nn.BatchNorm2d(16),
 			nn.Conv2d(16, 32, 5, 2, padding=2),  ## output size: [32, 28, 28]
@@ -135,6 +135,7 @@ class PPO:
 
 		# convert list to tensor
 		old_states = torch.stack(memory.states).to(device).detach()
+		old_states = old_states.squeeze(1)
 		old_actions = torch.stack(memory.actions).to(device).detach()
 		old_logprobs = torch.squeeze(torch.stack(memory.logprobs)).to(device).detach()
 

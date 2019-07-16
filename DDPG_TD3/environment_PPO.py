@@ -36,15 +36,16 @@ ANG_SCALE = 1/10 * pi
    level_15: 20,
    level_17: 26.
 """
-CONST = 100
+CONST = 150
 
-angle_start = 1 / 20 * pi
-angle_final = 1 / 4 * pi
-increase_rate = 25000
-
-linear_start = 100
-linear_final = 20
-decay_rate = 25000
+""" Exploration test """
+# angle_start = 1 / 20 * pi
+# angle_final = 1 / 4 * pi
+# increase_rate = 250000
+#
+# linear_start = 200
+# linear_final = 20
+# decay_rate = 250000
 
 
 def safe_load_line(name, handle):
@@ -141,10 +142,16 @@ class Environment:
 			self.screen = pygame.Surface((self.width, self.height))
 
 		if self.mode == 'image':
-			frame = self.render(save_image=True, mode = 'gray_array')
+			frame = self.render(save_image=True, mode = 'rgb_array')
 			"""" Return 1 frame of history; image info version """
-			self.stack = [np.expand_dims(frame, axis=0)] * self.img_stack  # four frames for decision
-			ob = torch.FloatTensor(self.stack).permute(1, 0, 2, 3)
+			# ## rgb mode
+			self.stack = [frame] * self.img_stack
+			ob = np.concatenate(self.stack, axis=0)
+			ob = torch.FloatTensor(ob).unsqueeze(0)
+
+			## gray mode
+			# self.stack = [np.expand_dims(frame, axis=0)] * self.img_stack  # four frames for decision
+			# ob = torch.FloatTensor(self.stack).permute(1, 0, 2, 3)
 			return ob
 
 		if self.mode == 'state':
@@ -192,7 +199,7 @@ class Environment:
 				else:
 					reward_s = ""
 			else:
-				reward_s = "TR:{:.5f}, R:{:.5f}".format(self.total_reward, self.last_reward)
+				reward_s = "TR:{:.5f}, R:{:.5f}".format(self.episode_reward, self.last_reward)
 			txtSurface = myfont.render(reward_s, False, (0, 0, 0))
 			surface.blit(txtSurface, (10, 10))
 
@@ -313,25 +320,25 @@ class Environment:
 		dis2gate = np.sqrt(x2gate ** 2 + y2gate ** 2)
 
 		""" grad of distance """
-		deviation = - 10 * dis2gate - 10 * abs(w2gate) + 100 * np.sum(state[6:len(state)])
+		deviation = 200 * np.sum(state[6:len(state)])
 		if self.prev_deviation is not None:
-			reward = deviation - self.prev_deviation
+			reward = deviation - self.prev_deviation - dis2gate - abs(w2gate)
 		self.prev_deviation = deviation
 
 		""" sparse reward function (only gate score)  """
-		#         deviation = 200 * np.sum(state[6:len(state)])
-		#         if self.prev_deviation is not None:
-		#             reward = deviation - self.prev_deviation
-		#         self.prev_deviation = deviation
+		# deviation = 200 * np.sum(state[6:len(state)])
+		# if self.prev_deviation is not None:
+		# 	reward = deviation - self.prev_deviation
+		# self.prev_deviation = deviation
 
 		# reward -= 0.1  ## time penalty
-		reward -= new_damage * 5  ## tissue damage penalty
+		# reward -= new_damage * 5  ## tissue damage penalty
 		# print("cyling_penalty: " + str(self.needle.cyling_penalty))
-		reward -= self.needle.cyling_penalty * 10  ## cyling penalty
+		# reward -= self.needle.cyling_penalty * 10  ## cyling penalty
 		# reward -= abs(self.needle.dw) * 10  ## penalty for frequently change direction
 
 		if self._deep_tissue_intersect():
-			reward = -200.
+			reward = - 100.
 
 		self.last_reward = reward
 		self.total_reward += reward
@@ -345,11 +352,19 @@ class Environment:
 
 		if self.mode == 'image':
 			""" if from image to action """
-			frame = self.render(save_image=True, mode = 'gray_array')
+			frame = self.render(save_image=True, mode = 'rgb_array')
+
 			self.stack.pop(0)
-			self.stack.append(np.expand_dims(frame, axis=0))
+			## for rgb only ##
+			self.stack.append(frame)
 			assert len(self.stack) == self.img_stack
-			ob = torch.FloatTensor(self.stack).permute(1, 0, 2, 3)
+			ob = np.concatenate(self.stack, axis=0)
+			ob = torch.FloatTensor(ob).unsqueeze(0)
+
+			## for gray
+			# self.stack.append(np.expand_dims(frame, axis=0))
+			# assert len(self.stack) == self.img_stack
+			# ob = torch.FloatTensor(self.stack).permute(1, 0, 2, 3)
 			return ob, reward, not running
 
 		if self.mode == 'state':
@@ -853,7 +868,9 @@ class Needle:
 		self.dw = 0.0
 
 		""" 2 dimension action """
+		# CONST = linear_final + (linear_start - linear_final) * math.exp(-1. * iteration / decay_rate)
 		dX = CONST + action[0] * VEL_SCALE
+		# ANG_SCALE = angle_final - (angle_final - angle_start) * math.exp(-1. * iteration / increase_rate)
 		action[1] = action[1] * ANG_SCALE
 		ox = math.cos(w + action[1] - pi) * dX
 		oy = - math.sin(w + action[1] - pi) * dX

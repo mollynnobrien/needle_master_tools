@@ -38,11 +38,11 @@ ANG_SCALE = 1/10 * pi
 """
 CONST = 100
 
-angle_start = 1 / 20 * pi
+angle_start = 1 / 10 * pi
 angle_final = 1 / 4 * pi
 increase_rate = 25000
 
-linear_start = 100
+linear_start = 60
 linear_final = 20
 decay_rate = 25000
 
@@ -310,22 +310,22 @@ class Environment:
 
 		dis2gate = np.sqrt(x2gate ** 2 + y2gate ** 2)
 
-		""" grad of distance """
-		deviation = - 10 * dis2gate - 10 * abs(w2gate) + 100 * np.sum(state[6:len(state)])
+		# """ grad of distance """
+		# deviation = - 10 * dis2gate - 10 * abs(w2gate) + 100 * np.sum(state[6:len(state)])
+		# if self.prev_deviation is not None:
+		# 	reward = deviation - self.prev_deviation
+		# self.prev_deviation = deviation
+
+		""" sparse reward function (only gate score)  """
+		deviation = 200 * np.sum(state[6:len(state)])
 		if self.prev_deviation is not None:
 			reward = deviation - self.prev_deviation
 		self.prev_deviation = deviation
 
-		""" sparse reward function (only gate score)  """
-		#         deviation = 200 * np.sum(state[6:len(state)])
-		#         if self.prev_deviation is not None:
-		#             reward = deviation - self.prev_deviation
-		#         self.prev_deviation = deviation
-
 		# reward -= 0.1  ## time penalty
 		reward -= new_damage * 5  ## tissue damage penalty
 		# print("cyling_penalty: " + str(self.needle.cyling_penalty))
-		reward -= self.needle.cyling_penalty * 10  ## cyling penalty
+		# reward -= self.needle.cyling_penalty * 10  ## cyling penalty
 		# reward -= abs(self.needle.dw) * 10  ## penalty for frequently change direction
 
 		if self._deep_tissue_intersect():
@@ -848,7 +848,9 @@ class Needle:
 		self.dw = 0.0
 
 		""" 2 dimension action """
+		CONST = linear_final + (linear_start - linear_final) * math.exp(-1. * iteration / decay_rate)
 		dX = CONST + action[0] * VEL_SCALE
+		ANG_SCALE = angle_final - (angle_final - angle_start) * math.exp(-1. * iteration / increase_rate)
 		action[1] = action[1] * ANG_SCALE
 		ox = math.cos(w + action[1] - pi) * dX
 		oy = - math.sin(w + action[1] - pi) * dX
