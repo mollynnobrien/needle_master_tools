@@ -5,6 +5,12 @@ import numpy as np
 
 
 Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
+<<<<<<< HEAD
+# blank_trans = Transition(0, torch.zeros(12, 224, 224, dtype=torch.uint8), None, 0, False)
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+=======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 
 
 # Segment tree data structure where parent node values are sum/max
@@ -65,7 +71,10 @@ class SegmentTree():
 
 class ReplayMemory():
   def __init__(self, args, capacity, default_img):
-    self.device = args.device
+<<<<<<< HEAD
+    self.device = device
+======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     self.capacity = capacity
     self.history = args.history_length
     self.discount = args.discount
@@ -74,10 +83,13 @@ class ReplayMemory():
     self.priority_weight = args.priority_weight
     self.priority_exponent = args.priority_exponent
     self.t = 0  # Internal episode timestep counter
+<<<<<<< HEAD
+    self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
+=======
     # Store transitions in a wrap-around cyclic buffer within a sum tree
     # for querying priorities
-    self.transitions = SegmentTree(capacity)
     # For placing into next_state of terminal actions
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     def_img = default_img[-1].to(dtype=torch.uint8, device=torch.device('cpu'))
     self.blank_trans = Transition(0, def_img, None, 0, False)
 
@@ -85,9 +97,7 @@ class ReplayMemory():
   def append(self, state, action, reward, terminal):
     # Only store last frame and discretise to save memory
     # (We potentially have all of history anyway)
-    state = state[-1]
-    #state = state.mul(255)
-    state = state.to(dtype=torch.uint8, device=torch.device('cpu'))
+    state = state[-1].mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))
     self.transitions.append(
         Transition(self.t, state, action, reward, not terminal),
         self.transitions.max)  # Store new transition with maximum priority
@@ -128,11 +138,15 @@ class ReplayMemory():
     # Retrieve all required transition data (from t - h to t + n)
     transition = self._get_transition(idx)
     # Create un-discretised state and nth next state
-    state = torch.stack([trans.state for trans in transition[:self.history]]
-        ).to(dtype=torch.float32, device=self.device).div_(255)
-    next_state = torch.stack(
-        [trans.state for trans in transition[self.n:self.n + self.history]]
-        ).to(dtype=torch.float32, device=self.device).div_(255)
+<<<<<<< HEAD
+
+    # for trans in transition[:self.history]:
+    #     ss = trans.state
+    state = torch.stack([trans.state for trans in transition[:self.history]]).to(dtype=torch.float32, device=self.device).div_(255)
+
+    next_state = torch.stack([trans.state for trans in transition[self.n:self.n + self.history]]).to(dtype=torch.float32, device=self.device).div_(255)
+=======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     # Discrete action to be used as index
     action = torch.tensor(
         [transition[self.history - 1].action], dtype=torch.int64,

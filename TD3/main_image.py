@@ -9,9 +9,8 @@ import plotly
 from .environment import Environment
 from .environment import PID
 from .utils import NaivePrioritizedBuffer
-from .TD3_image import TD3
 import math
-import matplotlib.pyplot as plt
+
 
 pi = math.pi
 Ts, rewards, Best_avg_reward = [], [], -1e5
@@ -72,7 +71,7 @@ def _plot_line(xs, ys_population, title, path=''):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy_name", default="TD3")  # Policy name
+
     parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
     parser.add_argument("--env_name", default="NeedleMaster")  # OpenAI gym environment name
     parser.add_argument("--seed", default=1e6, type=int)  # Sets Gym, PyTorch and Numpy seeds
@@ -93,6 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--img_stack", default=4, type=int)  # Frequency of delayed policy updates
     parser.add_argument("--evaluation_episodes", default=6, type=int)  # Frequency of delayed policy updates
     parser.add_argument("filename", help='File for environment')
+    parser.add_argument("policy_name", default="TD3")  # Policy name
 
     args = parser.parse_args()
 
@@ -109,10 +109,10 @@ if __name__ == "__main__":
             count += 1
         env_name = args.filename[start + 1:end]
 
-        save_path = "./" + env_name + "/TD3_out"
-        test_path = "./" + env_name + "/TD3_test"
-        result_path = "./" + env_name + "/TD3_results"
-        explore_path = "./" + env_name + "/TD3_explore"
+        save_path = "./" + env_name + "/" + args.policy_name + "_out"
+        test_path = "./" + env_name + "/" + args.policy_name + "_test"
+        result_path = "./" + env_name + "/" + args.policy_name + "_results"
+        explore_path = "./" + env_name + "/" + args.policy_name + "_explore"
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         if not os.path.exists(test_path):
@@ -175,8 +175,13 @@ if __name__ == "__main__":
     evaluations = []
 
     # Initialize policy
-    policy = TD3( action_dim, args.img_stack, max_action)
-    # replay_buffer = utils.ReplayBuffer(args.max_size)
+    if args.policy_name == 'TD3':
+        from .TD3_image import TD3
+        policy = TD3( action_dim, args.img_stack, max_action)
+    elif args.policy_name == 'DDPG':
+        from .DDPG_image import DDPG
+        policy = DDPG(action_dim, args.img_stack, max_action)
+
     replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
 
     env.total_timesteps = 0
@@ -220,7 +225,7 @@ if __name__ == "__main__":
             if env.total_timesteps > args.learning_start:
                 policy.actor.train()
                 beta = min(1.0, beta_start + env.total_timesteps * (1.0 - beta_start) / beta_frames)
-                policy.train(replay_buffer, episode_timesteps, beta, args.batch_size, args.discount, args.tau, args.policy_noise, args.noise_clip, args.policy_freq)
+                policy.train(replay_buffer, episode_timesteps, beta, args)
 
             # Reset environment
             state = env.reset()
@@ -258,7 +263,6 @@ if __name__ == "__main__":
 
 
         # Perform action
-
         new_state, reward, done = env.step(action)
 
         done_bool = 0 if episode_timesteps + 1 == env.max_time else float(done)

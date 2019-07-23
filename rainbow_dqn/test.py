@@ -3,23 +3,35 @@ import plotly
 from plotly.graph_objs import Scatter
 from plotly.graph_objs.scatter import Line
 import torch
+<<<<<<< HEAD
+from .environment import Environment
+=======
 
 #from .env import Env
-from needlemaster.environment import Environment, mode_rl
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 
 
 # Globals
 Ts, rewards, Qs, best_avg_reward = [], [], [], -1e10
+img_stack = 4
 
+
+## for pycharm
+# env_name = 'environment_1'
+# env_path = 'C:/Users/icage/needle_master_tools-lifan/environments/' + env_name + '.txt'
 
 # Test DQN
-def test(args, T, dqn, val_mem, evaluate=False):
+def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
+
   global Ts, rewards, Qs, best_avg_reward
-  def_arg = 'state' if args.state else None
-  env = Environment(filename=args.filename, mode=mode_rl,
-      default_render=def_arg)
-  env.eval()
-  Ts.append(T)
+<<<<<<< HEAD
+  # env = Environment(args)
+  env = Environment(args.policy_name, img_stack, args.filename)
+
+  ## for pycharm
+  # env = Environment(args.policy_name, img_stack, env_path)
+  # env.eval()
+=======
   T_rewards, T_Qs = [], []
 
   # Test performance over several episodes
@@ -29,17 +41,22 @@ def test(args, T, dqn, val_mem, evaluate=False):
       if done:
         state, reward_sum, done = env.reset(), 0, False
 
-      gpu_state = state.to(dtype=torch.float32, device=args.device).div_(255)
-      action = dqn.act_e_greedy(gpu_state)  # Choose an action ε-greedily
+<<<<<<< HEAD
+      # gpu_state = state.to(dtype=torch.float32, device=args.device).div_(255)
+      state = state.to(args.device)
+      action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+=======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
       state, reward, done = env.step(action)  # Step
       reward_sum += reward
-      if args.render:
-        env.render()
 
       if done:
+        env.render(save_image=True, save_path=test_path)
         T_rewards.append(reward_sum)
         break
-  env.close()
+
+    env.episode_num += 1
+    print(("Total T: %d Episode Num: %d Reward: %f") % (T, env.episode_num, reward_sum))
 
   # Test Q-values over validation memory
   for state in val_mem:  # Iterate over valid states
@@ -52,13 +69,13 @@ def test(args, T, dqn, val_mem, evaluate=False):
     Qs.append(T_Qs)
 
     # Plot
-    _plot_line(Ts, rewards, 'Reward', path='results')
-    _plot_line(Ts, Qs, 'Q', path='results')
+    _plot_line(Ts, rewards, 'Reward', path = result_path)
+    _plot_line(Ts, Qs, 'Q', path = result_path)
 
     # Save model parameters if improved
     if avg_reward > best_avg_reward:
       best_avg_reward = avg_reward
-      dqn.save('results')
+      dqn.save(result_path)
 
   # Return average reward and Q-value
   return avg_reward, avg_Q

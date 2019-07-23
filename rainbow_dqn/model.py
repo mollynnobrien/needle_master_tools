@@ -46,7 +46,7 @@ class NoisyLinear(nn.Module):
       return F.linear(input, self.weight_mu, self.bias_mu)
 
 # Base class for convolutional and full connected
-class DQNBase(nn.Module):
+class DQN(nn.Module):
   def __init__(self, args, action_space):
     super().__init__()
     self.atoms = args.atoms
@@ -68,8 +68,11 @@ class DQNConv(DQNBase):
     print("initial_size = ", self.initial_size)
     print("reduced_size =", self.reduced_size)
 
+<<<<<<< HEAD
+    self.conv1 = nn.Conv2d(args.history_length, 16, 5, stride=2, padding=2)
+=======
     # initial size: 16 * dim * dim / (2 * 2)
-    self.conv1 = nn.Conv2d(self.first_size, 16, 5, stride=2, padding=2)
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     # every other convolution halves
     self.conv2 = nn.Conv2d(16, 32, 5, stride=2, padding=2)
     self.conv3 = nn.Conv2d(32, 64, 5, stride=2, padding=2)
@@ -82,8 +85,11 @@ class DQNConv(DQNBase):
     self.fc_z_a = NoisyLinear(args.hidden_size, action_space * self.atoms, std_init=args.noisy_std)
 
   def forward(self, x, log=False):
-    x = x.view(-1, self.first_size, 224, 224)
+<<<<<<< HEAD
+    # x = x.view(-1, self.first_size, 224, 224)
+=======
     #print(x.shape)
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     x = F.relu(self.conv1(x))
     #print(x.shape)
     x = F.relu(self.conv2(x))
@@ -91,11 +97,14 @@ class DQNConv(DQNBase):
     x = F.relu(self.conv3(x))
     #print(x.shape)
     x = F.relu(self.conv4(x))
-    #print(x.shape)
+<<<<<<< HEAD
     x = F.relu(self.conv5(x))
-    #print(x.shape)
     x = F.relu(self.conv6(x))
+=======
     #print(x.shape)
+    #print(x.shape)
+    #print(x.shape)
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     x = x.view(-1, self.reduced_size)
     v = self.fc_z_v(F.relu(self.fc_h_v(x)))  # Value stream
     a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream
@@ -104,37 +113,8 @@ class DQNConv(DQNBase):
     # Log probabilities with action over second dimension
     q = F.log_softmax(q, dim=2) if log else F.softmax(q, dim=2)  
     return q
+ def return_niose(self):
+     for name, module in self.named_children():
+         if 'fc' in name:
+             module.reset.noise()
 
-class DQN_FC(DQNBase):
-  def __init__(self, args, action_space):
-    super().__init__(args, action_space)
-    self.state_size = 3
-    self.reduced_size = 20
-    self.hidden_size = 20
-    self.fc1 = NoisyLinear(self.state_size, 20, std_init=args.noisy_std)
-    self.fc2 = NoisyLinear(20, 20, std_init=args.noisy_std)
-    self.fc_h_v = NoisyLinear(self.reduced_size, args.hidden_size, std_init=args.noisy_std)
-    self.fc_h_a = NoisyLinear(self.reduced_size, args.hidden_size, std_init=args.noisy_std)
-    self.fc_z_v = NoisyLinear(args.hidden_size, self.atoms, std_init=args.noisy_std)
-    self.fc_z_a = NoisyLinear(args.hidden_size, action_space * self.atoms, std_init=args.noisy_std)
-
-
-  def forward(self, x, log=False):
-    x = x.view(-1, self.state_size)
-    #print(x.shape)
-    x = F.relu(self.fc1(x))
-    #print(x.shape)
-    x = F.relu(self.fc2(x))
-    #print(x.shape)
-
-    x = x.view(-1, self.reduced_size)
-    #print(x.shape)
-    v = self.fc_z_v(F.relu(self.fc_h_v(x)))  # Value stream
-    #print("v =", v.shape)
-    a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream
-    #print("a =", a.shape)
-    v, a = v.view(-1, 1, self.atoms), a.view(-1, self.action_space, self.atoms)
-    q = v + a - a.mean(1, keepdim=True)  # Combine streams
-    # Log probabilities with action over second dimension
-    q = F.log_softmax(q, dim=2) if log else F.softmax(q, dim=2)  
-    return q
