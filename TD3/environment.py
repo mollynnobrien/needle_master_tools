@@ -338,7 +338,7 @@ class Environment:
             done = True
 
         if type(reward) == list:
-            # pdb.set_trace()
+            pdb.set_trace()
             reward = reward[0]
 
         self.last_reward = float(reward)
