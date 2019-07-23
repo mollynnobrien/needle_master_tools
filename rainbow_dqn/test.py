@@ -5,7 +5,7 @@ from plotly.graph_objs.scatter import Line
 import torch
 
 #from .env import Env
-from needlemaster.environment import Environment
+from needlemaster.environment import Environment, mode_rl
 
 
 # Globals
@@ -15,7 +15,9 @@ Ts, rewards, Qs, best_avg_reward = [], [], [], -1e10
 # Test DQN
 def test(args, T, dqn, val_mem, evaluate=False):
   global Ts, rewards, Qs, best_avg_reward
-  env = Environment(args)
+  def_arg = 'state' if args.state else None
+  env = Environment(filename=args.filename, mode=mode_rl,
+      default_render=def_arg)
   env.eval()
   Ts.append(T)
   T_rewards, T_Qs = [], []
@@ -27,7 +29,8 @@ def test(args, T, dqn, val_mem, evaluate=False):
       if done:
         state, reward_sum, done = env.reset(), 0, False
 
-      action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+      gpu_state = state.to(dtype=torch.float32, device=args.device).div_(255)
+      action = dqn.act_e_greedy(gpu_state)  # Choose an action ε-greedily
       state, reward, done = env.step(action)  # Step
       reward_sum += reward
       if args.render:

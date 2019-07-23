@@ -3,3 +3,6 @@
 /*.egg-info
 *.png
 .ipynb-checkpoints/
+*.orig
+*.gpg
+/build/
