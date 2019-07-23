@@ -21,15 +21,20 @@ parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=int(1e6), metavar='STEPS', help='Number of training steps (4x number of frames)')
 parser.add_argument('--max-episode-length', type=int, default=int(108e3), metavar='LENGTH', help='Max episode length (0 to disable)')
+<<<<<<< HEAD
 parser.add_argument('--channels', type=int, default=3, metavar='C', help='Number of channels per image')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')
+=======
+parser.add_argument('--history-length', type=int, default=1, metavar='T', help='Number of consecutive states processed')
+parser.add_argument('--channels', type=int, default=3, metavar='C', help='Number of channels per image')
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
-parser.add_argument('--noisy-std', type=float, default=0.1, metavar='σ', help='Initial standard deviation of noisy linear layers')
+parser.add_argument('--noisy-std', type=float, default=1.0, metavar='σ', help='Initial standard deviation of noisy linear layers')
 parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
 parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
 parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
-parser.add_argument('--memory-capacity', type=int, default=int(1e6), metavar='CAPACITY', help='Experience replay memory capacity')
+parser.add_argument('--memory-capacity', type=int, default=50000, metavar='CAPACITY', help='Experience replay memory capacity')
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
 parser.add_argument('--priority-exponent', type=float, default=0.5, metavar='ω', help='Prioritised experience replay exponent (originally denoted α)')
 parser.add_argument('--priority-weight', type=float, default=0.4, metavar='β', help='Initial prioritised experience replay importance sampling weight')
@@ -40,19 +45,26 @@ parser.add_argument('--reward-clip', type=int, default=1, metavar='VALUE', help=
 parser.add_argument('--lr', type=float, default=0.0000625, metavar='η', help='Learning rate')
 parser.add_argument('--adam-eps', type=float, default=1.5e-4, metavar='ε', help='Adam epsilon')
 parser.add_argument('--batch-size', type=int, default=32, metavar='SIZE', help='Batch size')
+<<<<<<< HEAD
 parser.add_argument('--learn-start', type=int, default=int(20e3), metavar='STEPS', help='Number of steps before starting training')
+=======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
 parser.add_argument('--evaluation-interval', type=int, default=100000, metavar='STEPS', help='Number of training steps between evaluations')
 parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', help='Number of evaluation episodes to average over')
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
-parser.add_argument('--log-interval', type=int, default=25000, metavar='STEPS', help='Number of training steps between logging status')
+parser.add_argument('--log-interval', type=int, default=50, metavar='STEPS', help='Number of training steps between logging status')
+#25000
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('filename', help='File for environment')
+<<<<<<< HEAD
 parser.add_argument("--policy_name", default="image")  # Policy name
 
 ## for pycharm
 # env_name = 'environment_1'
 # env_path = 'C:/Users/icage/needle_master_tools-lifan/environments/' + env_name + '.txt'
+=======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 
 
 # Setup
@@ -100,6 +112,7 @@ if not os.path.exists(result_path):
     os.makedirs(result_path)
 
 # Environment
+<<<<<<< HEAD
 img_stack = 4
 
 ## PID controller
@@ -107,6 +120,11 @@ parameter = [0.1, 0.0009]
 
 ## for pycharm
 # env = Environment(args.policy_name, img_stack, env_path)
+=======
+env = Environment(args.policy_name, img_stack, args.filename)
+action_dim = env.action_space()
+pid = PID( parameter, env.width, env.height )
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 
 ## for scripts
 env = Environment(args.policy_name, img_stack, args.filename)
@@ -115,12 +133,17 @@ pid = PID( parameter, env.width, env.height )
 
 # Agent
 dqn = Agent(args, env)
+<<<<<<< HEAD
 mem = ReplayMemory(args, args.memory_capacity,  env.reset())
+=======
+mem = ReplayMemory(args, args.memory_capacity, env.reset())
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
 # load pre-trained model first (if there is any)
 dqn.load(result_path)
 
 # Construct validation memory
+<<<<<<< HEAD
 val_mem = ReplayMemory(args, args.evaluation_size,  env.reset())
 
 T, done = 0, True
@@ -153,6 +176,8 @@ else:
   T, done = 0, True
   episode_timesteps = 0
   while T < args.T_max:
+=======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     if done:
         print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (T, env.episode_num, episode_timesteps, env.episode_reward))
         # if env.episode_num % 20 == 0:
@@ -161,6 +186,7 @@ else:
         env.episode_num += 1
         episode_timesteps = 0
 
+<<<<<<< HEAD
     if T % args.replay_frequency == 0:
       dqn.reset_noise()  # Draw a new set of noisy weights
 
@@ -177,9 +203,12 @@ else:
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
     mem.append(state, action_idx, reward, done)  # Append transition to memory
+=======
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     T += 1
     episode_timesteps += 1
 
+<<<<<<< HEAD
     if T % args.log_interval == 0:
       log('T = ' + str(T) + ' / ' + str(args.T_max))
 
@@ -207,6 +236,7 @@ else:
         # print("target update")
         dqn.update_target_net()
         # print("dqn.update pass")
+=======
 
-    state = next_state
-
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
+      state = next_state

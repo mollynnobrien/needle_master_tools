@@ -3,8 +3,12 @@ import random
 import torch
 from torch import optim
 
+<<<<<<< HEAD
 from .model import DQN
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+=======
+from .model import DQNConv, DQN_FC
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 
 
 class Agent():
@@ -19,7 +23,12 @@ class Agent():
     self.n = args.multi_step
     self.discount = args.discount
 
+<<<<<<< HEAD
     self.online_net = DQN(args, self.action_space).to(device)
+=======
+    # Choose which DQN to use
+    self.online_net = DQN(args, self.action_space).to(device=args.device)
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     if args.model and os.path.isfile(args.model):
       # Always load tensors onto CPU by default, will shift to GPU if necessary
       self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
@@ -51,7 +60,8 @@ class Agent():
 
   def learn(self, mem):
     # Sample transitions
-    idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
+    idxs, states, actions, returns, next_states, nonterminals, weights = \
+        mem.sample(self.batch_size)
 
     # Calculate current state probabilities (online network noise already sampled)
     log_ps = self.online_net(states, log=True)  # Log probabilities log p(s_t, ·; θonline)
