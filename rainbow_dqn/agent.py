@@ -4,6 +4,7 @@ import torch
 from torch import optim
 
 from .model import DQN
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Agent():
@@ -12,19 +13,19 @@ class Agent():
     self.atoms = args.atoms
     self.Vmin = args.V_min
     self.Vmax = args.V_max
-    self.support = torch.linspace(args.V_min, args.V_max, self.atoms).to(device=args.device)  # Support (range) of z
+    self.support = torch.linspace(args.V_min, args.V_max, self.atoms).to(device)  # Support (range) of z
     self.delta_z = (args.V_max - args.V_min) / (self.atoms - 1)
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
 
-    self.online_net = DQN(args, self.action_space).to(device=args.device)
+    self.online_net = DQN(args, self.action_space).to(device)
     if args.model and os.path.isfile(args.model):
       # Always load tensors onto CPU by default, will shift to GPU if necessary
       self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
     self.online_net.train()
 
-    self.target_net = DQN(args, self.action_space).to(device=args.device)
+    self.target_net = DQN(args, self.action_space).to(device)
     self.update_target_net()
     self.target_net.train()
     for param in self.target_net.parameters():
@@ -39,6 +40,7 @@ class Agent():
   # Acts based on single state (no batch)
   def act(self, state):
     with torch.no_grad():
+      # print(state.size())
       x = self.online_net(state.unsqueeze(0)) * self.support
       x = x.sum(2).argmax(1).item()
       return x
@@ -93,11 +95,21 @@ class Agent():
   # Save model parameters on current device (don't move model between devices)
   def save(self, path):
     torch.save(self.online_net.state_dict(), os.path.join(path, 'model.pth'))
+    torch.save(self.target_net.state_dict(), os.path.join(path, 'model_target.pth'))
+
+  # Load model parameters
+  def load(self, path):
+    self.online_net.load_state_dict(torch.load(os.path.join(path, 'model.pth')))
+    ## modify here!!!
+    self.target_net.load_state_dict(torch.load(os.path.join(path, 'model.pth')))
 
   # Evaluates Q-value based on single state (no batch)
   def evaluate_q(self, state):
     with torch.no_grad():
-      return (self.online_net(state.unsqueeze(0)) * self.support).sum(2).max(1)[0].item()
+      x = self.online_net(state.unsqueeze(0)) * self.support
+      x = x.sum(2).max(1)[0]
+      x = x.item()
+      return x
 
   def train(self):
     self.online_net.train()
