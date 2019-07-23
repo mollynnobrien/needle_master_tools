@@ -1,11 +1,14 @@
-
+import os, sys, argparse
+from os.path import abspath
+from os.path import join as pjoin
 import numpy as np
 import torch
-import argparse
-import os
 import random
-from environment_PPO import Environment
-from environment import PID
+
+cur_dir= os.path.dirname(abspath(__file__))
+sys.path.append(abspath(pjoin(cur_dir, '..')))
+from needlemaster.environment import Environment
+#from environment import PID
 
 # from .environment_PPO import Environment
 # from .environment import PID
@@ -35,7 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--gamma", default=0.99, type=float)  # discount factor
 
     parser.add_argument('filename', help='File for environment')
-    parser.add_argument("policy_name", default="image")  # Policy name
+    parser.add_argument("policy_name", default="rgb_array")  # Policy name
 
     # setup
     args = parser.parse_args()
@@ -84,8 +87,6 @@ if __name__ == "__main__":
     """ setting up environment """
     action_dim = 2
     img_stack = 4
-    ## from py
-    # env = Environment(args.policy_name, action_dim, log_f, img_stack, env_path)
 
     ## from script
     env = Environment(args.policy_name, action_dim, log_f, img_stack, args.filename)
@@ -111,7 +112,7 @@ if __name__ == "__main__":
         from PPO import Memory
         memory = Memory()
         policy = PPO(state_dim, action_dim, args.action_std, args.lr, args.betas, args.gamma, args.K_epochs, args.eps_clip)
-    elif args.policy_name == 'image':
+    elif args.policy_name == 'rgb_array':
         from PPO_image import PPO
         from PPO_image import Memory
         memory = Memory()
@@ -150,7 +151,7 @@ if __name__ == "__main__":
             Reward.append(env.episode_reward)
 
             # Reset environment
-            state = env.reset(log_f)
+            state = env.reset()
 
             done = False
 
@@ -164,7 +165,7 @@ if __name__ == "__main__":
         log_f.write('action based on policy:{}\n'.format(action))
 
         # Perform action
-        new_state, reward, done = env.step(action, log_f)
+        new_state, reward, done = env.step(action)
 
         done_bool = 0 if episode_timesteps + 1 == env.max_time else float(done)
         env.episode_reward += reward
