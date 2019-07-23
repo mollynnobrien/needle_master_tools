@@ -198,8 +198,14 @@ class TD3(object):
         state = state.float().to(device)
         return self.actor(state).cpu().data.numpy().flatten()
 
-    def train(self, replay_buffer, iterations, beta_PER, batch_size=100, discount=0.99, tau=0.005, policy_noise=0.2,
-              noise_clip=0.5, policy_freq=2):
+    def train(self, replay_buffer, iterations, beta_PER, args):
+
+        batch_size = args.batch_size
+        discount = args.discount
+        tau = args.tau
+        policy_noise = args.policy_noise
+        noise_clip = args.noise_clip
+        policy_freq = args.policy_freq
 
         for it in range(iterations):
 
@@ -236,7 +242,7 @@ class TD3(object):
 
             # Compute critic loss
             critic_loss =  weights * ((current_Q1 - target_Q).pow(2) + (current_Q2 - target_Q).pow(2))
-            prios = critic_loss + 1e-5 
+            prios = critic_loss + 1e-5
             critic_loss = critic_loss.mean()
             self.critic_loss.append(critic_loss)
 
