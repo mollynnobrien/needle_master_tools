@@ -1,4 +1,1 @@
-## Needle Master
-This repo inplemented DDPG and TD3 on Needle Master, with images as innputs.
-To run: 
-- 'python -m TD3.main_image [envionment] [agent]', eg: 'python -m TD3.main_image data/environment_14.txt DDPG'
+To run: 'python -m TD3.main_image [envionment] [agent]', eg: 'python -m TD3.main_image data/environment_14.txt DDPG'
