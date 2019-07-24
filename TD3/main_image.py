@@ -261,7 +261,7 @@ if __name__ == "__main__":
         help='Frequency of delayed policy updates')
     parser.add_argument("--max_size", default=5e4, type=int,
         help='Frequency of delayed policy updates')
-    parser.add_argument("--img_stack", default=2, type=int,
+    parser.add_argument("--img_stack", default=4, type=int,
         help='How much history to use')
     parser.add_argument("--evaluation_episodes", default=6, type=int)
     parser.add_argument("--profile", default=False, action="store_true",
