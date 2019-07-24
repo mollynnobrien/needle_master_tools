@@ -25,14 +25,14 @@ class Environment:
     record_interval = 40
     record_interval_t = 3
 
-    def __init__(self, mode, action_dim, log_file, stack_size,
-            filename=None):
+    def __init__(self, mode, stack_size, log_file=None,
+            filename=None, max_time=150):
 
         self.t = 0
         self.height = 0
         self.width = 0
         self.needle = None
-        self.max_time = 150
+        self.max_time = max_time
         self.next_gate = None
         self.filename = filename
         if not os.path.exists('./out'):
@@ -41,9 +41,7 @@ class Environment:
         self.episode = 0
         self.status = None
         self.total_timesteps = 0
-        self.episode_num = 0
         self.Reward = []
-        self.action_dim = action_dim
         """ create image stack """
         self.stack_size = stack_size
         self.log_file = log_file
@@ -65,7 +63,6 @@ class Environment:
         self.gates = []
         self.surfaces = []
         self.t = 0
-        self.episode_reward = 0
         # environment damage is the sum of the damage to all surfaces
         self.damage = 0
         self.next_gate = None
@@ -97,8 +94,7 @@ class Environment:
             return ob
 
         elif self.mode == 'state':
-            action_ini = np.zeros((self.action_dim,))
-            state = self.step(action_ini)
+            state = self._get_state()
             return state[0]
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
@@ -139,7 +135,7 @@ class Environment:
                     reward_s = ""
             else:
                 reward_s = "TR:{:.5f}, R:{:.5f}".format(
-                        self.episode_reward, self.last_reward)
+                        self.total_reward, self.last_reward)
             txtSurface = myfont.render(reward_s, False, (0, 0, 0))
             surface.blit(txtSurface, (10, 10))
 
@@ -147,7 +143,7 @@ class Environment:
                 os.mkdir(save_path)
             if self.t > 0:
                 save_file = os.path.join(save_path,
-                        '{:06d}_{:03d}.png'.format(self.episode_num, self.t))
+                        '{:06d}_{:03d}.png'.format(self.episode, self.t))
                 pygame.image.save(surface, save_file)
 
         # Return the figure in a numpy buffer
@@ -600,14 +596,15 @@ class Needle:
         w = self.w
 
         """ 1 dimension action """
-        dw = action[1]
+        dw = action[0]
         dw = math.pi if dw > math.pi else -math.pi if dw < -math.pi else dw
         dx = math.cos(w + dw - math.pi) * VELOCITY
         dy = -math.sin(w + dw - math.pi) * VELOCITY
 
-        self.log_file.write('action:{}\n'.format(action[1]))
-        self.log_file.write('dx:{}, dy:{}, dw:{}\n'.format(dx, dy, dw))
-        self.log_file.flush()
+        if self.log_file:
+            self.log_file.write('action:{}\n'.format(action[1]))
+            self.log_file.write('dx:{}, dy:{}, dw:{}\n'.format(dx, dy, dw))
+            self.log_file.flush()
 
         return dw, dx, dy
 

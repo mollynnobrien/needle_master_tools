@@ -1,18 +1,20 @@
 import numpy as np
 import torch
-import argparse
-import os
-import random
+import random, math
+import os, sys, argparse
+from os.path import abspath
+from os.path import join as pjoin
 from plotly.graph_objs import Scatter
 from plotly.graph_objs.scatter import Line
 import plotly
-from .environment import Environment
-from .environment import PID
+
+cur_dir= os.path.dirname(abspath(__file__))
+sys.path.append(abspath(pjoin(cur_dir, '..')))
+from needlemaster.environment import Environment
+
+#from .environment import PID
 from .utils import NaivePrioritizedBuffer
-import math
 
-
-pi = math.pi
 Ts, rewards, Best_avg_reward = [], [], -1e5
 
 # Runs policy for X episodes and returns average reward
@@ -20,28 +22,25 @@ def evaluate_policy(args, policy, T, test_path, result_path):
     global Ts, rewards, Best_avg_reward
     Ts.append(T)
     T_rewards = []
-    policy.actor.eval()
-    done = True
-    env.episode_reward = 0
+    policy.actor.eval() # set for batchnorm
     for _ in range(args.evaluation_episodes):
-        while True:
-            if done:
-                state, reward_sum, done = env.reset(), 0, False
+        reward_sum = 0
+        done = False
+        state = env.reset()
+        while not done:
             action = policy.select_action(state)
             state, reward, done = env.step(action)
             reward_sum += reward
 
-            if done:
-                env.render(save_image=True, save_path=test_path)
-                T_rewards.append(reward_sum)
-                break
+        env.render(save_image=True, save_path=test_path)
+        T_rewards.append(reward_sum)
     avg_reward = sum(T_rewards) / len(T_rewards)
     rewards.append(T_rewards)
     _plot_line(Ts, rewards, 'Reward', path = test_path)
 
     ## same model parameters if improved
-    if avg_reward > Best_avg_reward:
-        Best_avg_reward = avg_reward
+    if avg_reward > best_avg_reward:
+        best_avg_reward = avg_reward
         policy.save(result_path)
 
     print ("---------------------------------------")
@@ -51,83 +50,52 @@ def evaluate_policy(args, policy, T, test_path, result_path):
 
 # Plots min, max and mean + standard deviation bars of a population over time
 def _plot_line(xs, ys_population, title, path=''):
-  max_colour, mean_colour, std_colour, transparent = 'rgb(0, 132, 180)', 'rgb(0, 172, 237)', 'rgba(29, 202, 255, 0.2)', 'rgba(0, 0, 0, 0)'
+  max_colour, mean_colour, std_colour, transparent = (
+      'rgb(0, 132, 180)', 'rgb(0, 172, 237)', 'rgba(29, 202, 255, 0.2)',
+      'rgba(0, 0, 0, 0)')
 
   ys = torch.tensor(ys_population, dtype=torch.float32)
   ys_min, ys_max, ys_mean, ys_std = ys.min(1)[0].squeeze(), ys.max(1)[0].squeeze(), ys.mean(1).squeeze(), ys.std(1).squeeze()
   ys_upper, ys_lower = ys_mean + ys_std, ys_mean - ys_std
 
-  trace_max = Scatter(x=xs, y=ys_max.numpy(), line=Line(color=max_colour, dash='dash'), name='Max')
-  trace_upper = Scatter(x=xs, y=ys_upper.numpy(), line=Line(color=transparent), name='+1 Std. Dev.', showlegend=False)
-  trace_mean = Scatter(x=xs, y=ys_mean.numpy(), fill='tonexty', fillcolor=std_colour, line=Line(color=mean_colour), name='Mean')
-  trace_lower = Scatter(x=xs, y=ys_lower.numpy(), fill='tonexty', fillcolor=std_colour, line=Line(color=transparent), name='-1 Std. Dev.', showlegend=False)
-  trace_min = Scatter(x=xs, y=ys_min.numpy(), line=Line(color=max_colour, dash='dash'), name='Min')
+  trace_max = Scatter(x=xs, y=ys_max.numpy(),
+      line=Line(color=max_colour, dash='dash'), name='Max')
+  trace_upper = Scatter(x=xs, y=ys_upper.numpy(),
+      line=Line(color=transparent), name='+1 Std. Dev.', showlegend=False)
+  trace_mean = Scatter(x=xs, y=ys_mean.numpy(), fill='tonexty',
+      fillcolor=std_colour, line=Line(color=mean_colour), name='Mean')
+  trace_lower = Scatter(x=xs, y=ys_lower.numpy(), fill='tonexty',
+      fillcolor=std_colour, line=Line(color=transparent),
+      name='-1 Std. Dev.', showlegend=False)
+  trace_min = Scatter(x=xs, y=ys_min.numpy(),
+      line=Line(color=max_colour, dash='dash'), name='Min')
 
   plotly.offline.plot({
     'data': [trace_upper, trace_mean, trace_lower, trace_min, trace_max],
     'layout': dict(title=title, xaxis={'title': 'Step'}, yaxis={'title': title})
   }, filename=os.path.join(path, title + '.html'), auto_open=False)
 
-if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
+def run(args):
+    args.policy_name = args.policy_name.lower()
 
-    parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
-    parser.add_argument("--env_name", default="NeedleMaster")  # OpenAI gym environment name
-    parser.add_argument("--seed", default=1e6, type=int)  # Sets Gym, PyTorch and Numpy seeds
-    parser.add_argument("--pid_interval", default=5e3, type=int)  # How many time steps purely random policy is run for
-    parser.add_argument("--eval_freq", default=5e3, type=float)  # How often (time steps) we evaluate
-    parser.add_argument("--pid_freq", default=1e4, type=int)  # How often we get back to pure random action
-    parser.add_argument("--max_timesteps", default=5e6, type=float)  # Max time steps to run environment for
-    parser.add_argument("--learning_start", default=5e2, type=int)  # Timesteps before learning
-    parser.add_argument("--save_models", action= "store" )  # Whether or not models are saved
-    parser.add_argument("--expl_noise", default=0.2, type=float)  # Std of Gaussian exploration noise
-    parser.add_argument("--batch_size", default=32, type=int)  # Batch size for both actor and critic
-    parser.add_argument("--discount", default=0.99, type=float)  # Discount factor
-    parser.add_argument("--tau", default=0.005, type=float)  # Target network update rate
-    parser.add_argument("--policy_noise", default=0.2, type=float)  # Noise added to target policy during critic update
-    parser.add_argument("--noise_clip", default=0.5, type=float)  # Range to clip target policy noise
-    parser.add_argument("--policy_freq", default=2, type=int)  # Frequency of delayed policy updates
-    parser.add_argument("--max_size", default=5e4, type=int)  # Frequency of delayed policy updates
-    parser.add_argument("--img_stack", default=4, type=int)  # Frequency of delayed policy updates
-    parser.add_argument("--evaluation_episodes", default=6, type=int)  # Frequency of delayed policy updates
-    parser.add_argument("filename", help='File for environment')
-    parser.add_argument("policy_name", default="TD3")  # Policy name
-
-    args = parser.parse_args()
-
-    # env_name = 'environment_17'
-    # env_path = 'C:/Users/icage/needle_master_tools-lifan/environments/' + env_name + '.txt'
+    env_data_name = os.path.splitext(
+        os.path.basename(args.filename))[0]
 
     def make_dirs(args):
-        count = 0
-        for chr in args.filename:
-            if chr == '/':
-                start = count
-            elif chr == '.':
-                end = count
-            count += 1
-        env_name = args.filename[start + 1:end]
+        path = pjoin(env_data_name, args.policy_name)
 
-        save_path = "./" + env_name + "/" + args.policy_name + "_out"
-        test_path = "./" + env_name + "/" + args.policy_name + "_test"
-        result_path = "./" + env_name + "/" + args.policy_name + "_results"
-        explore_path = "./" + env_name + "/" + args.policy_name + "_explore"
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        if not os.path.exists(test_path):
-            os.makedirs(test_path)
-        if not os.path.exists(result_path):
-            os.makedirs(result_path)
-        if not os.path.exists(explore_path):
-            os.makedirs(explore_path)
-        return save_path, test_path, result_path, explore_path, env_name
+        save_p = path + '_out'
+        test_p = path + '_test'
+        result_p = path + '_results'
+        for p in [save_p, test_p, result_p]:
+          if not os.path.exists(p):
+              os.makedirs(p)
+        return save_p, test_p, result_p
 
-    save_path, test_path, result_path, explore_path, env_name = make_dirs(args)
-    file_name = "%s_%s_%s" % (env_name,args.policy_name, args.env_name)
-    print ("---------------------------------------")
-    print ("Settings: %s" % (file_name))
-    print ("---------------------------------------")
+    save_path, test_path, result_path = make_dirs(args)
+    base_filename = '{}_{}_{}'.format(
+        args.env_name, args.policy_name, env_data_name)
 
     # Set random seeds
     random.seed(args.seed)
@@ -135,31 +103,28 @@ if __name__ == "__main__":
     if torch.cuda.is_available() and not args.disable_cuda:
         args.device = torch.device('cuda')
         torch.cuda.manual_seed(random.randint(1, 10000))
-        torch.backends.cudnn.enabled = False  # Disable nondeterministic ops (not sure if critical but better safe than sorry)
+        # Disable nondeterministic ops (not sure if critical but better
+        # safe than sorry)
+        #torch.backends.cudnn.enabled = False
     else:
         args.device = torch.device('cpu')
 
-    ## environment set up
-    """ Adding the log file """
-    logfile = "%s_%s_%s" % (env_name, args.policy_name, args.env_name)
-    log_f = open("log_"+logfile+".txt","w+")
+    ## environment setup
+    log_f = open('log_' + base_filename + '.txt', 'w')
 
     """ setting up environment """
-    action_dim = 1
-    ## from pycharm
-    # env = Environment("image", args.img_stack, env_path)
-    ## from scripts
-    env = Environment("image", args.img_stack, args.filename)
+    env = Environment(mode='rgb_array', stack_size=args.img_stack,
+        filename=args.filename)
     state_dim = len(env.gates) + 9
 
-    """" setting up PID controller """
-    action_constrain = [10, np.pi/20]
+    """ setting up PID controller """
+    #action_constrain = [10, np.pi/20]
     # parameter = [0.1,0.0009]
-    parameter =  [0.0000001, 0.5]
-    pid = PID( parameter, env.width, env.height )
+    # parameter =  [0.0000001, 0.5]
+    #pid = PID( parameter, env.width, env.height )
 
     """ setting up action bound for RL """
-    max_action = 1/4 * pi
+    max_action = 1/4 * math.pi
 
     """ parameters for epsilon declay """
     epsilon_start = 1
@@ -171,113 +136,144 @@ if __name__ == "__main__":
     beta_start = 0.4
     beta_frames = 25000
 
-    """ start straightly """
-    evaluations = []
-
     # Initialize policy
-    if args.policy_name == 'TD3':
+    action_dim = 1
+    if args.policy_name == 'td3':
         from .TD3_image import TD3
         policy = TD3( action_dim, args.img_stack, max_action)
-    elif args.policy_name == 'DDPG':
+    elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
         policy = DDPG(action_dim, args.img_stack, max_action)
+    else:
+      raise ValueError(
+        args.policy_name + ' is not recognized as a valid policy')
 
     replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
 
-    env.total_timesteps = 0
-    timesteps_since_eval = 0
-    pid_assist = 0
-    done = True
+    state = env.reset()
+    #print('state = ', state) # debug
+    total_timesteps = 0
+    episode_num = 0
+    done = False
 
-    while env.total_timesteps < args.max_timesteps:
+    policy.actor.eval() # set for batchnorm
+
+    while total_timesteps < args.max_timesteps:
 
         # Evaluate episode
-        if timesteps_since_eval >= args.eval_freq:
-            timesteps_since_eval %= args.eval_freq
-            Best_reward = evaluate_policy(args, policy, env.total_timesteps, test_path, result_path)
-            continue
-
-        ## finish one episode, and train episode_times
-        if done:
-            log_f.write('~~~~~~~~~~~~~~~~~~~~~~~~ iteration {} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n'.format(env.episode_num))
-
-            ## load model
-            # policy.load(result_path)
-
-            ## training as usual
-            # if env.total_timesteps != 0 and env.episode_reward > 500:
-            if env.total_timesteps != 0:
-                log_f.write('Total:{}, Episode Num:{}, Eposide:{}, Reward:{}\n'.format(env.total_timesteps, env.episode_num, episode_timesteps, env.episode_reward))
-                log_f.flush()
-
-                if env.total_timesteps > args.learning_start:
-                    if env.episode_num % 20 == 0:
-                        print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (
-	                        env.total_timesteps, env.episode_num, episode_timesteps, env.episode_reward))
-                        env.render( save_image=True, save_path=save_path)
-                else:
-                    print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (
-		                env.total_timesteps, env.episode_num, episode_timesteps, env.episode_reward))
-                    env.render(save_image = True, save_path = explore_path)
-
-
-            ## sampling data before start to train
-            if env.total_timesteps > args.learning_start:
-                policy.actor.train()
-                beta = min(1.0, beta_start + env.total_timesteps * (1.0 - beta_start) / beta_frames)
-                policy.train(replay_buffer, episode_timesteps, beta, args)
-
-            # Reset environment
-            state = env.reset()
-            done = False
-            env.episode_num += 1
-            env.episode_reward = 0
-            episode_timesteps = 0
+        if (total_timesteps % args.eval_freq == 0
+            and total_timesteps != 0):
+            print("Evaluating policy") # debug
+            best_reward = evaluate_policy(
+                args, policy, total_timesteps, test_path, result_path)
 
         """ exploration rate decay """
-        args.expl_noise = (epsilon_start - epsilon_final) * math.exp(-1. * env.total_timesteps / decay_rate)
+        args.expl_noise = ((epsilon_start - epsilon_final) *
+            math.exp(-1. * total_timesteps / decay_rate))
         ep_decay.append(args.expl_noise)
-        # log_f.write('epsilon decay:{}\n'.format(args.expl_noise))
-
-        # if env.total_timesteps % 500 == 0 and args.expl_noise > 0:
-        #     args.expl_noise *= 0.9
+        # log_f.write('epsilon decay:{}\n'.format(args.expl_noise)) # debug
 
         # """ using PID controller """
         # state_pid = state[0:3]
-        # action = pid.PIDcontroller( state_pid, env.next_gate, env.gates, env.total_timesteps)
+        # action = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
         # print("action based on PID: " + str(action))
 
         """ action selected based on pure policy """
-        policy.actor.eval()
         action = policy.select_action(state)
-        log_f.write('action based on policy:{}\n'.format(action))
-        # print("action based on policy:" + str(action))
+        #log_f.write('action based on policy:{}\n'.format(action)) # debug
+
         if args.expl_noise != 0:
             # state_pid = state[0:3]
-            # guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, env.total_timesteps)
+            # guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
             noise = np.random.normal(0, args.expl_noise, size=action_dim)
-            # print("noise: " + str(noise))
-            # action = ((1 - args.expl_noise) * action + args.expl_noise * guidance)
-            action = action + noise
-            action = np.clip(action, -max_action ,max_action)
-
+            action = np.clip(action + noise, -max_action, max_action)
 
         # Perform action
         new_state, reward, done = env.step(action)
 
-        done_bool = 0 if episode_timesteps + 1 == env.max_time else float(done)
-        env.episode_reward += reward
-
         # Store data in replay buffer
-        # print("reward in")
-        # print(reward)
-        replay_buffer.add(state, new_state, action, reward, done_bool)
-        # print("state: " + str(state))
+        replay_buffer.add(state, new_state, action, reward, done)
+
+        ## Train over the past episode
+        if done:
+            print "Training. episode ", episode_num # debug
+
+            ## training
+            str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}'.format(
+              total_timesteps, episode_num, env.t, env.total_reward)
+
+            log_f.write(str + '\n')
+            if episode_num % 20 == 0:
+                print(str)
+                env.render(save_image=True, save_path=save_path)
+
+            policy.actor.train() # Set actor to training mode
+
+            beta = min(1.0, beta_start + total_timesteps *
+                (1.0 - beta_start) / beta_frames)
+            policy.train(replay_buffer, env.t, beta, args)
+
+            policy.actor.eval() # set for batchnorm
+
+            # Reset environment
+            new_state = env.reset()
+            done = False
+            episode_num += 1
+
+            # print "Training done" # debug
+
         state = new_state
+        total_timesteps += 1
 
-        episode_timesteps += 1
-        env.total_timesteps += 1
-        timesteps_since_eval += 1
 
-    print("The Best Reward: " + str(Best_reward))
+    print("Best Reward: " + best_reward)
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
+    parser.add_argument("--env_name", default="NeedleMaster",
+        help='OpenAI gym environment name')
+    parser.add_argument("--seed", default=1e6, type=int,
+        help='Sets Gym, PyTorch and Numpy seeds')
+    parser.add_argument("--pid_interval", default=5e3, type=int,
+        help='How many time steps purely random policy is run for')
+    parser.add_argument("--eval_freq", default=5e3, type=int,
+        help='How often (time steps) we evaluate')
+    parser.add_argument("--pid_freq", default=1e4, type=int,
+        help='How often we get back to pure random action')
+    parser.add_argument("--max_timesteps", default=5e6, type=float,
+        help='Max time steps to run environment for')
+    parser.add_argument("--learning_start", default=0, type=int,
+        help='Timesteps before learning')
+    parser.add_argument("--save_models", action= "store",
+        help='Whether or not models are saved')
+    parser.add_argument("--expl_noise", default=0.2, type=float,
+        help='Std of Gaussian exploration noise')
+    parser.add_argument("--batch_size", default=32, type=int,
+        help='Batch size for both actor and critic')
+    parser.add_argument("--discount", default=0.99, type=float,
+        help='Discount factor')
+    parser.add_argument("--tau", default=0.005, type=float,
+        help='Target network update rate')
+    parser.add_argument("--policy_noise", default=0.2, type=float,
+        help='Noise added to target policy during critic update')
+    parser.add_argument("--noise_clip", default=0.5, type=float,
+        help='Range to clip target policy noise')
+    parser.add_argument("--policy_freq", default=2, type=int,
+        help='Frequency of delayed policy updates')
+    parser.add_argument("--max_size", default=5e4, type=int,
+        help='Frequency of delayed policy updates')
+    parser.add_argument("--img_stack", default=4, type=int,
+        help='How much history to use')
+    parser.add_argument("--evaluation_episodes", default=6, type=int)
+    parser.add_argument("--profile", default=False, action="store_true",
+        help="Profile the program for performance")
+    parser.add_argument("filename", help='File for environment')
+    parser.add_argument("policy_name", default="TD3", type=str)
+
+    args = parser.parse_args()
+    if args.profile:
+        import cProfile
+        cProfile.run('run(args)')
+    else:
+        run(args)
