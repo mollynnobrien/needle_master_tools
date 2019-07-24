@@ -88,8 +88,10 @@ class Environment:
         if self.mode == 'rgb_array':
             frame = self.render(save_image=True)
             # Create image stack
-            self.stack = [frame] * self.stack_size
-            ob = np.concatenate(self.stack, axis=0)
+            self.stack = [frame] * (self.stack_size + 1)
+            ob = self.stack.copy()
+            del ob[1]
+            ob = np.concatenate(ob, axis=0)
             ob = torch.FloatTensor(ob).unsqueeze(0)
             return ob
 
@@ -290,8 +292,10 @@ class Environment:
             self.stack.pop(0)
             ## for rgb only ##
             self.stack.append(frame)
-            assert len(self.stack) == self.stack_size
-            ob = np.concatenate(self.stack, axis=0)
+            assert len(self.stack) == (self.stack_size + 1)
+            ob = self.stack.copy()
+            del ob[1]
+            ob = np.concatenate(ob, axis=0)
             ob = torch.FloatTensor(ob).unsqueeze(0)
             return ob, reward, done
 
@@ -602,7 +606,7 @@ class Needle:
         dy = -math.sin(w + dw - math.pi) * VELOCITY
 
         if self.log_file:
-            self.log_file.write('action:{}\n'.format(action[1]))
+            self.log_file.write('action:{}\n'.format(action[0]))
             self.log_file.write('dx:{}, dy:{}, dw:{}\n'.format(dx, dy, dw))
             self.log_file.flush()
 

@@ -12,13 +12,12 @@ cur_dir= os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
 from needlemaster.environment import Environment
 
-#from .environment import PID
 from .utils import NaivePrioritizedBuffer
 
 Ts, rewards, Best_avg_reward = [], [], -1e5
 
 # Runs policy for X episodes and returns average reward
-def evaluate_policy(args, policy, T, test_path, result_path):
+def evaluate_policy(env, args, policy, T, test_path, result_path):
     global Ts, rewards, Best_avg_reward
     Ts.append(T)
     T_rewards = []
@@ -39,8 +38,8 @@ def evaluate_policy(args, policy, T, test_path, result_path):
     _plot_line(Ts, rewards, 'Reward', path = test_path)
 
     ## same model parameters if improved
-    if avg_reward > best_avg_reward:
-        best_avg_reward = avg_reward
+    if avg_reward > Best_avg_reward:
+        Best_avg_reward = avg_reward
         policy.save(result_path)
 
     print ("---------------------------------------")
@@ -140,7 +139,7 @@ def run(args):
     action_dim = 1
     if args.policy_name == 'td3':
         from .TD3_image import TD3
-        policy = TD3( action_dim, args.img_stack, max_action)
+        policy = TD3(action_dim, args.img_stack, max_action)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
         policy = DDPG(action_dim, args.img_stack, max_action)
@@ -165,7 +164,7 @@ def run(args):
             and total_timesteps != 0):
             print("Evaluating policy") # debug
             best_reward = evaluate_policy(
-                args, policy, total_timesteps, test_path, result_path)
+                env, args, policy, total_timesteps, test_path, result_path)
 
         """ exploration rate decay """
         args.expl_noise = ((epsilon_start - epsilon_final) *
@@ -196,7 +195,7 @@ def run(args):
 
         ## Train over the past episode
         if done:
-            print "Training. episode ", episode_num # debug
+            print ("Training. episode ", episode_num) # debug
 
             ## training
             str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}'.format(
@@ -225,7 +224,6 @@ def run(args):
         state = new_state
         total_timesteps += 1
 
-
     print("Best Reward: " + best_reward)
 
 if __name__ == "__main__":
@@ -237,7 +235,7 @@ if __name__ == "__main__":
         help='Sets Gym, PyTorch and Numpy seeds')
     parser.add_argument("--pid_interval", default=5e3, type=int,
         help='How many time steps purely random policy is run for')
-    parser.add_argument("--eval_freq", default=5e3, type=int,
+    parser.add_argument("--eval_freq", default=1e3, type=int,
         help='How often (time steps) we evaluate')
     parser.add_argument("--pid_freq", default=1e4, type=int,
         help='How often we get back to pure random action')
@@ -263,7 +261,7 @@ if __name__ == "__main__":
         help='Frequency of delayed policy updates')
     parser.add_argument("--max_size", default=5e4, type=int,
         help='Frequency of delayed policy updates')
-    parser.add_argument("--img_stack", default=4, type=int,
+    parser.add_argument("--img_stack", default=2, type=int,
         help='How much history to use')
     parser.add_argument("--evaluation_episodes", default=6, type=int)
     parser.add_argument("--profile", default=False, action="store_true",
