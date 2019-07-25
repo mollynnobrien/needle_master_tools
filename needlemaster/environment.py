@@ -3,7 +3,6 @@ import os
 import math
 import random
 import numpy as np
-import torch
 from shapely.geometry import Polygon, Point # using to replace sympy
 import pygame
 
@@ -89,8 +88,7 @@ class Environment:
             frame = self.render(save_image=True)
             # Create image stack
             self.stack = [frame] * self.stack_size
-            ob = np.concatenate([self.stack[0], self.stack[-1]], axis=0)
-            ob = torch.FloatTensor(ob).unsqueeze(0)
+            ob = np.concatenate(self.stack)
             return ob
 
         elif self.mode == 'state':
@@ -148,13 +146,10 @@ class Environment:
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
-            arr = pygame.surfarray.array3d(surface)
-            # not necessary to convert to float since we store as uint8
-            arr = arr.astype(np.float32)
-            arr /= 255.
-            frame = torch.from_numpy(arr).permute(2, 0, 1)
-
-        return frame
+            # Return an array of uint8 for efficiency
+            frame = pygame.surfarray.array3d(surface).transpose((2, 0, 1))
+            #frame = torch.from_numpy(arr).permute(2, 0, 1)
+            return frame
 
 
     @staticmethod
@@ -291,8 +286,7 @@ class Environment:
             ## for rgb only ##
             self.stack.append(frame)
             assert len(self.stack) == self.stack_size
-            ob = np.concatenate([self.stack[0], self.stack[-1]], axis=0)
-            ob = torch.FloatTensor(ob).unsqueeze(0)
+            ob = np.concatenate(self.stack)
             return ob, reward, done
 
         if self.mode == 'state':
