@@ -112,9 +112,8 @@ def run(args):
     log_f = open('log_' + base_filename + '.txt', 'w')
 
     """ setting up environment """
-    env = Environment(mode=args.mode)
+    env = Environment(filename = args.filename, mode=args.mode, stack_size = args.stack_size)
 
-    state_dim = len(env.gates) + 9
 
     """ setting up PID controller """
     #action_constrain = [10, np.pi/20]
@@ -157,7 +156,7 @@ def run(args):
     replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
 
     state = env.reset()
-    #print('state = ', state) # debug
+    print('state = ', state) # debug
     total_timesteps = 0
     episode_num = 0
     done = False
@@ -202,7 +201,7 @@ def run(args):
 
         ## Train over the past episode
         if done:
-            print "Training. episode ", episode_num, "R =", env.total_reward # debug
+            print ("Training. episode ", episode_num, "R =", env.total_reward) # debug
 
             ## training
             str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}'.format(
@@ -276,7 +275,6 @@ if __name__ == "__main__":
         help="Profile the program for performance")
     parser.add_argument("--modified", default=False,
         help="Modify the position of gates (only for environment_1)")
-        help="Control the modification rate")
     parser.add_argument("--mode", default = 'state',
         help="Choose image or state, options are rgb_array and state")
     parser.add_argument("filename", help='File for environment')

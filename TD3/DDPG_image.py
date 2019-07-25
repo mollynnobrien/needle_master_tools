@@ -19,7 +19,7 @@ class Flatten(torch.nn.Module):
         return x.view(x.size(0), -1)
 
 class Actor_image(nn.Module):
-    def __init__(self, state_dim, action_dim, img_stack, max_action):
+    def __init__(self, action_dim, img_stack, max_action):
         super(Actor_image, self).__init__()
         self.encoder = torch.nn.ModuleList([  ## input size:[img_stack, 224, 224]
             torch.nn.Conv2d(img_stack*3, 16, 5, 2, padding=2), ## [16, 112, 112]
@@ -66,7 +66,7 @@ class Actor_image(nn.Module):
         return x
 
 class Actor_state(nn.Module):
-    def __init__(self, state_dim, action_dim, img_stack, max_action):
+    def __init__(self, state_dim, action_dim, max_action):
         super(Actor_state, self).__init__()
 
         self.linear = torch.nn.ModuleList([
@@ -91,7 +91,7 @@ class Actor_state(nn.Module):
         return x
 
 class Critic_image(nn.Module):
-    def __init__(self, state_dim, action_dim, img_stack):
+    def __init__(self, action_dim, img_stack):
         super(Critic_image, self).__init__()
 
         self.encoder = torch.nn.ModuleList([  ## input size:[224, 224]
@@ -132,7 +132,7 @@ class Critic_image(nn.Module):
         return x
 
 class Critic_state(nn.Module):
-    def __init__(self, state_dim, action_dim, img_stack):
+    def __init__(self, state_dim, action_dim):
         super(Critic_state, self).__init__()
 
         self.linear = torch.nn.ModuleList([
@@ -158,15 +158,15 @@ class DDPG(object):
         self.action_dim = action_dim
         self.mode = mode
         if mode == 'rgb_array':
-            self.actor = Actor_image(state_dim, action_dim, img_stack, max_action).to(device)
-            self.actor_target = Actor_image(state_dim, action_dim, img_stack, max_action).to(device)
-            self.critic = Critic_image(state_dim, action_dim, img_stack).to(device)
-            self.critic_target = Critic_image(state_dim, action_dim, img_stack).to(device)
+            self.actor = Actor_image(action_dim, img_stack, max_action).to(device)
+            self.actor_target = Actor_image(action_dim, img_stack, max_action).to(device)
+            self.critic = Critic_image( action_dim, img_stack).to(device)
+            self.critic_target = Critic_image( action_dim, img_stack).to(device)
         elif mode == 'state':
-            self.actor = Actor_state(state_dim, action_dim, img_stack, max_action).to(device)
-            self.actor_target = Actor_state(state_dim, action_dim, img_stack, max_action).to(device)
-            self.critic = Critic_state(state_dim, action_dim, img_stack).to(device)
-            self.critic_target = Critic_state(state_dim, action_dim, img_stack).to(device)
+            self.actor = Actor_state(state_dim, action_dim, max_action).to(device)
+            self.actor_target = Actor_state(state_dim, action_dim, max_action).to(device)
+            self.critic = Critic_state(state_dim, action_dim).to(device)
+            self.critic_target = Critic_state(state_dim, action_dim).to(device)
 
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters())
@@ -176,14 +176,18 @@ class DDPG(object):
 
     def select_action(self, state):
         # Copy as uint8
-        state = torch.from_numpy(state).unsqueeze(0).to(device).float()
         if self.mode == 'rgb_array':
+            state = torch.from_numpy(state).unsqueeze(0).to(device).float()
             state /= 255.0
+        else:
+            state = torch.from_numpy(state).to(device).float()
+            # print("state size: " + str(state.size()))
         return self.actor(state).cpu().data.numpy().flatten()
 
     def copy_sample_to_device(self, x, y, u, r, d, w, batch_size):
         # Copy as uint8
         x = torch.from_numpy(x).squeeze(1).to(device).float()
+        # print("x size: " + str(x.size()))
         y = torch.from_numpy(y).squeeze(1).to(device).float()
         if self.mode == 'rgb_array':
             x /= 255.0 # Normalize
