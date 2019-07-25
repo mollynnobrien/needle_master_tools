@@ -112,8 +112,8 @@ def run(args):
     log_f = open('log_' + base_filename + '.txt', 'w')
 
     """ setting up environment """
-    env = Environment(mode='rgb_array', stack_size=args.img_stack,
-        filename=args.filename)
+    env = Environment(mode='rgb_array',args)
+
     state_dim = len(env.gates) + 9
 
     """ setting up PID controller """
@@ -146,6 +146,10 @@ def run(args):
     else:
       raise ValueError(
         args.policy_name + ' is not recognized as a valid policy')
+
+
+    ## load pre-trained policy
+    policy.load(result_path)
 
     replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
 
@@ -266,6 +270,10 @@ if __name__ == "__main__":
     parser.add_argument("--evaluation_episodes", default=6, type=int)
     parser.add_argument("--profile", default=False, action="store_true",
         help="Profile the program for performance")
+    parser.add_argument("--modified", default=False, action="store_true",
+        help="Modify the position of gates")
+    parser.add_argument("--modi_rate", default = int(5e2), type = int,
+        help="Control the modification rate")
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
 

@@ -8,10 +8,14 @@ from shapely.geometry import Polygon, Point # using to replace sympy
 import pygame
 
 GREEN = (0, 255, 0)
-
 two_pi = math.pi * 2
-
 VELOCITY = 50
+
+## gate pos modification
+POS = [[0.3,0.7,1.5707963267948966],
+       [0.5,0.7,1.5707963267948966],
+       [0.7,0.7,1.5707963267948966]]
+
 
 def safe_load_line(name, handle):
     l = handle.readline()[:-1].split(': ')
@@ -25,38 +29,35 @@ class Environment:
     record_interval = 40
     record_interval_t = 3
 
-    def __init__(self, mode, stack_size, log_file=None,
-            filename=None, max_time=150):
+    def __init__(self, mode, args, T):
 
         self.t = 0
         self.height = 0
         self.width = 0
         self.needle = None
-        self.max_time = max_time
+        self.max_time = 150
         self.next_gate = None
-        self.filename = filename
-        if not os.path.exists('./out'):
-            os.mkdir('./out')
+        self.filename = args.filename
         self.mode = mode
         self.episode = 0
         self.status = None
         self.total_timesteps = 0
         self.Reward = []
         """ create image stack """
-        self.stack_size = stack_size
-        self.log_file = log_file
+        self.stack_size = args.stack_size
+        self.log_file = None
 
         self.is_init = False  # One-time stuff to do at reset
         # Create screen for scaling down
         self.scaled_screen = pygame.Surface((224, 224))
         pygame.font.init()
-        self.reset()
+        self.reset(args, T)
 
     def sample_action(self):
         action = np.array([random.uniform(-1, -1), random.uniform(1, 1)])
         return action
 
-    def reset(self):
+    def reset(self, args, T):
         ''' Create a new environment. Currently based on attached filename '''
         self.done = False
         self.ngates = 0
@@ -72,6 +73,7 @@ class Environment:
                        self.episode % self.record_interval == 0)
         self.total_reward = 0.
         self.last_reward = 0.
+        self.modi_rate = args.modi_rate
 
         if self.filename is not None:
             with open(self.filename, 'r') as file:
@@ -281,6 +283,7 @@ class Environment:
 
         self.last_reward = reward
         self.total_reward += reward
+
 
         if self.record and self.t % self.record_interval_t == 0:
             self.render(mode='rgb_array', save_image=True)
