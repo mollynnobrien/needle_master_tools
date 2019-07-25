@@ -82,7 +82,7 @@ def run(args):
         os.path.basename(args.filename))[0]
 
     def make_dirs(args):
-        path = pjoin(env_data_name, args.policy_name)
+        path = pjoin(env_data_name, args.policy_name, args.mode)
 
         save_p = path + '_out'
         test_p = path + '_test'
@@ -112,7 +112,7 @@ def run(args):
     log_f = open('log_' + base_filename + '.txt', 'w')
 
     """ setting up environment """
-    env = Environment(args, mode='rgb_array', T =0)
+    env = Environment(args, mode=args.mode, T =0)
 
     print(env_data_name)
     if env_data_name != "environment_1" and args.modified:
@@ -141,12 +141,13 @@ def run(args):
 
     # Initialize policy
     action_dim = 1
+    state_dim = len(env.gates) + 9
     if args.policy_name == 'td3':
         from .TD3_image import TD3
-        policy = TD3(action_dim, args.stack_size, max_action)
+        policy = TD3(state_dim, action_dim, args.stack_size, max_action)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
-        policy = DDPG(action_dim, args.stack_size, max_action)
+        policy = DDPG(state_dim, action_dim, args.stack_size, max_action, args.mode)
     else:
       raise ValueError(
         args.policy_name + ' is not recognized as a valid policy')
@@ -279,8 +280,10 @@ if __name__ == "__main__":
         help="Profile the program for performance")
     parser.add_argument("--modified", default=False,
         help="Modify the position of gates (only for environment_1)")
-    parser.add_argument("--modi_rate", default = int(5e2), type = int,
+    parser.add_argument("--modi_rate", default = int(2e2), type = int,
         help="Control the modification rate")
+    parser.add_argument("--mode", default = 'state',
+        help="Choose image or state, options are rgb_array and state")
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
 

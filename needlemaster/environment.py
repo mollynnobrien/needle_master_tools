@@ -13,7 +13,9 @@ VELOCITY = 50
 
 ## gate pos modification
 POS = [[0.3,0.7,1.5707963267948966],
+       [0.4,0.7,1.5707963267948966],
        [0.5,0.7,1.5707963267948966],
+       [0.6,0.7,1.5707963267948966],
        [0.7,0.7,1.5707963267948966]]
 
 
@@ -96,8 +98,9 @@ class Environment:
             return ob
 
         elif self.mode == 'state':
-            state = self._get_state()
-            return state[0]
+            state = self._get_state().reshape((1,-1))
+            state = torch.FloatTensor(state)
+            return state
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
 
@@ -179,10 +182,10 @@ class Environment:
         #print " - num gates=%d"%(self.ngates)
 
         ## calculate gate new position
-        if T//self.modi_rate <= 2:
+        if T//self.modi_rate <= len(POS)-1:
             new_pos = POS[T//self.modi_rate]
         else:
-            new_pos = POS[2]
+            new_pos = POS[len(POS)-1]
 
         for _ in range(self.ngates):
             gate = Gate(self.width, self.height)
@@ -306,7 +309,8 @@ class Environment:
 
         if self.mode == 'state':
             """ else from state to action"""
-            state = self._get_state()
+            state = self._get_state().reshape((1,-1))
+            state = torch.FloatTensor(state)
             return state, reward, done
 
     def _surface_with_needle(self):
@@ -454,7 +458,6 @@ class Gate:
     '''
     def load(self, handle, new_pos, args):
 
-        print(args.modified)
         if args.modified:
             pos, cornersx, cornersy, topx, topy, bottomx, bottomy \
                 = self.modify_position(handle, new_pos)
@@ -505,7 +508,6 @@ class Gate:
         self.box = Polygon(self.corners)
         self.top_box = Polygon(self.top)
         self.bottom_box = Polygon(self.bottom)
-
 
 class Surface:
 
@@ -570,6 +572,9 @@ class Needle:
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
         self.w = math.pi             # face right
+        self.dx = 0.0
+        self.dy = 0.0
+        self.dw = 0.0
         self.corners = None
 
         self.length_const = 0.08

@@ -18,10 +18,9 @@ class Flatten(torch.nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
-class Actor(nn.Module):
-    def __init__(self, action_dim, img_stack, max_action):
-        super(Actor, self).__init__()
-
+class Actor_image(nn.Module):
+    def __init__(self, state_dim, action_dim, img_stack, max_action):
+        super(Actor_image, self).__init__()
         self.encoder = torch.nn.ModuleList([  ## input size:[img_stack, 224, 224]
             torch.nn.Conv2d(img_stack*3, 16, 5, 2, padding=2), ## [16, 112, 112]
             torch.nn.ReLU(),
@@ -66,9 +65,34 @@ class Actor(nn.Module):
 
         return x
 
-class Critic(nn.Module):
-    def __init__(self, action_dim, img_stack):
-        super(Critic, self).__init__()
+class Actor_state(nn.Module):
+    def __init__(self, state_dim, action_dim, img_stack, max_action):
+        super(Actor_state, self).__init__()
+
+        self.linear = torch.nn.ModuleList([
+            torch.nn.Linear(state_dim, 400),
+            torch.nn.ReLU(),
+            torch.nn.BatchNorm1d(400),
+            torch.nn.Linear(400, 30),
+            torch.nn.ReLU(),
+            torch.nn.BatchNorm1d(30),
+        ])
+
+        self.out_angular = nn.Linear(30, int(action_dim))
+        self.max_action = max_action
+
+    def forward(self, x):
+        for layer in self.linear:
+            x = layer(x)
+
+        x = self.out_angular(x)
+        x = self.max_action * torch.tanh(x)
+
+        return x
+
+class Critic_image(nn.Module):
+    def __init__(self, state_dim, action_dim, img_stack):
+        super(Critic_image, self).__init__()
 
         self.encoder = torch.nn.ModuleList([  ## input size:[224, 224]
             torch.nn.Conv2d(img_stack*3, 16, 5, 2, padding=2),  ## [16, 112, 112]
@@ -107,28 +131,51 @@ class Critic(nn.Module):
                 x = layer(x)
         return x
 
+class Critic_state(nn.Module):
+    def __init__(self, state_dim, action_dim, img_stack):
+        super(Critic_state, self).__init__()
+
+        self.linear = torch.nn.ModuleList([
+            torch.nn.Linear(state_dim + action_dim, 400),
+            torch.nn.ReLU(),
+            torch.nn.BatchNorm1d(400),
+            torch.nn.Linear(400, 100),
+            torch.nn.ReLU(),
+            torch.nn.BatchNorm1d(100),
+            torch.nn.Linear(100, 1),
+        ])
+
+    def forward(self, x, u):
+        x = torch.cat([x, u], 1)
+        for layer in self.linear:
+                x = layer(x)
+        return x
+
 class DDPG(object):
-    def __init__(self, action_dim, img_stack, max_action):
+    def __init__(self, state_dim, action_dim, img_stack, max_action, mode):
 
         self.max_action = max_action
         self.action_dim = action_dim
-        self.actor = Actor(action_dim, img_stack, max_action).to(device)
-        self.actor_target = Actor(action_dim, img_stack, max_action).to(device)
+        if mode == 'rgb_array':
+            self.actor = Actor_image(state_dim, action_dim, img_stack, max_action).to(device)
+            self.actor_target = Actor_image(state_dim, action_dim, img_stack, max_action).to(device)
+            self.critic = Critic_image(state_dim, action_dim, img_stack).to(device)
+            self.critic_target = Critic_image(state_dim, action_dim, img_stack).to(device)
+        elif mode == 'state':
+            self.actor = Actor_state(state_dim, action_dim, img_stack, max_action).to(device)
+            self.actor_target = Actor_state(state_dim, action_dim, img_stack, max_action).to(device)
+            self.critic = Critic_state(state_dim, action_dim, img_stack).to(device)
+            self.critic_target = Critic_state(state_dim, action_dim, img_stack).to(device)
+
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters())
-        self.actor_loss = []
 
-        self.critic = Critic(action_dim, img_stack).to(device)
-        self.critic_target = Critic(action_dim, img_stack).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters())
-        self.critic_loss = []
-
 
     def select_action(self, state):
         state = state.float().to(device)
         return self.actor(state).cpu().data.numpy().flatten()
-
 
     def train(self, replay_buffer, iterations, beta_PER, args):
 
@@ -160,7 +207,6 @@ class DDPG(object):
             critic_loss = weights * ((current_Q - target_Q).pow(2))
             prios = critic_loss + 1e-5
             critic_loss = critic_loss.mean()
-            self.critic_loss.append(critic_loss)
 
             # Optimize the critic
             self.critic_optimizer.zero_grad()
@@ -171,7 +217,6 @@ class DDPG(object):
             # Compute actor loss
             actor_loss = -self.critic(state, self.actor(state)).mean()/100
             #actor_loss.data = -1
-            self.actor_loss.append(actor_loss)
 
             # Optimize the actor
             self.actor_optimizer.zero_grad()

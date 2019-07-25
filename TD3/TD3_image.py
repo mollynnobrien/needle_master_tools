@@ -19,14 +19,6 @@ class Flatten(torch.nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
-class Reshape(torch.nn.Module):
-    def __init__(self, outer_shape):
-        super(Reshape, self).__init__()
-        self.outer_shape = outer_shape
-
-    def forward(self, x):
-        return x.view(x.size(0), *self.outer_shape)
-
 class Actor(nn.Module):
     def __init__(self, action_dim, img_stack, max_action):
         super(Actor, self).__init__()
