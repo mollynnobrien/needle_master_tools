@@ -195,7 +195,7 @@ def run(args):
 
         ## Train over the past episode
         if done:
-            print ("Training. episode ", episode_num) # debug
+            print "Training. episode ", episode_num, "R =", env.total_reward # debug
 
             ## training
             str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}'.format(
@@ -228,7 +228,8 @@ def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
+    parser.add_argument('--disable-cuda', default=False, action='store_true',
+        help='Disable CUDA')
     parser.add_argument("--env_name", default="NeedleMaster",
         help='OpenAI gym environment name')
     parser.add_argument("--seed", default=1e6, type=int,
@@ -261,7 +262,7 @@ if __name__ == "__main__":
         help='Frequency of delayed policy updates')
     parser.add_argument("--max_size", default=5e4, type=int,
         help='Frequency of delayed policy updates')
-    parser.add_argument("--img_stack", default=4, type=int,
+    parser.add_argument("--img_stack", default=2, type=int,
         help='How much history to use')
     parser.add_argument("--evaluation_episodes", default=6, type=int)
     parser.add_argument("--profile", default=False, action="store_true",
@@ -272,6 +273,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.profile:
         import cProfile
-        cProfile.run('run(args)')
+        cProfile.run('run(args)', sort='cumtime')
     else:
         run(args)
