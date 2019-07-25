@@ -29,7 +29,7 @@ class Environment:
     record_interval = 40
     record_interval_t = 3
 
-    def __init__(self, mode, args, T):
+    def __init__(self, args, mode, T):
 
         self.t = 0
         self.height = 0
@@ -77,7 +77,7 @@ class Environment:
 
         if self.filename is not None:
             with open(self.filename, 'r') as file:
-                self.load(file)
+                self.load(file, T, args)
 
         self.needle = Needle(self.width, self.height, self.log_file)
 
@@ -167,7 +167,7 @@ class Environment:
     '''
     Load an environment file.
     '''
-    def load(self, handle):
+    def load(self, handle, T, args):
 
         D = safe_load_line('Dimensions', handle)
         self.height = int(D[1])
@@ -178,9 +178,15 @@ class Environment:
         self.ngates = int(D[0])
         #print " - num gates=%d"%(self.ngates)
 
+        ## calculate gate new position
+        if T//self.modi_rate <= 2:
+            new_pos = POS[T//self.modi_rate]
+        else:
+            new_pos = POS[2]
+
         for _ in range(self.ngates):
             gate = Gate(self.width, self.height)
-            gate.load(handle)
+            gate.load(handle, new_pos, args)
             self.gates.append(gate)
 
         if self.ngates > 0:
@@ -404,10 +410,11 @@ class Gate:
         pygame.draw.polygon(surface, self.c2, self.top)
         pygame.draw.polygon(surface, self.c3, self.bottom)
 
-    '''
-    Load Gate from file at the current position.
-    '''
-    def load(self, handle):
+    """
+     Modifying gate positon
+     """
+
+    def modify_position(self, handle, new_pos):
 
         pos = safe_load_line('GatePos', handle)
         cornersx = safe_load_line('GateX', handle)
@@ -416,6 +423,49 @@ class Gate:
         topy = safe_load_line('TopY', handle)
         bottomx = safe_load_line('BottomX', handle)
         bottomy = safe_load_line('BottomY', handle)
+
+        # print("before")
+        # print(type(pos))
+        # print(pos,'  ', cornersx, '  ',cornersy, '  ',topx, '  ',
+        #       topy, '  ',bottomx, '  ',bottomy)
+        x_shift = (new_pos[0] - float(pos[0])) * self.env_width
+        y_shift = (new_pos[1] - float(pos[1])) * self.env_height
+        # print("shift")
+        # print(x_shift, '  ', y_shift)
+
+        x_pos = [cornersx, topx, bottomx]
+        y_pos = [cornersy, topy, bottomy]
+
+        for ob in x_pos:
+            for num, i in zip(ob, range(len(ob))):
+                ob[i] = str(float(num) + x_shift)
+
+        for ob in y_pos:
+            for num, i in zip(ob, range(len(ob))):
+                ob[i] = str(float(num) + y_shift)
+
+        # print("after")
+        # print(pos,'  ', cornersx, '  ',cornersy, '  ',topx, '  ',
+        #       topy, '  ',bottomx, '  ',bottomy)
+        return pos, cornersx, cornersy, topx, topy, bottomx, bottomy
+
+    '''
+    Load Gate from file at the current position.
+    '''
+    def load(self, handle, new_pos, args):
+
+        print(args.modified)
+        if args.modified:
+            pos, cornersx, cornersy, topx, topy, bottomx, bottomy \
+                = self.modify_position(handle, new_pos)
+        else:
+            pos = safe_load_line('GatePos', handle)
+            cornersx = safe_load_line('GateX', handle)
+            cornersy = safe_load_line('GateY', handle)
+            topx = safe_load_line('TopX', handle)
+            topy = safe_load_line('TopY', handle)
+            bottomx = safe_load_line('BottomX', handle)
+            bottomy = safe_load_line('BottomY', handle)
 
         self.x = self.env_width * float(pos[0])
         self.y = self.env_height * float(pos[1])
