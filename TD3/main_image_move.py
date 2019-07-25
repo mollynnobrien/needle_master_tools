@@ -10,7 +10,7 @@ import plotly
 
 cur_dir= os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
-from needlemaster.environment import Environment
+from needlemaster.environment_move import Environment
 
 from .utils import NaivePrioritizedBuffer
 
@@ -25,7 +25,7 @@ def evaluate_policy(env, args, policy, T, test_path, result_path):
     for _ in range(args.evaluation_episodes):
         reward_sum = 0
         done = False
-        state = env.reset()
+        state = env.reset(args, T)
         while not done:
             action = policy.select_action(state)
             state, reward, done = env.step(action)
@@ -82,7 +82,7 @@ def run(args):
         os.path.basename(args.filename))[0]
 
     def make_dirs(args):
-        path = pjoin(env_data_name, args.policy_name, args.mode)
+        path = pjoin(env_data_name, args.policy_name)
 
         save_p = path + '_out'
         test_p = path + '_test'
@@ -112,7 +112,11 @@ def run(args):
     log_f = open('log_' + base_filename + '.txt', 'w')
 
     """ setting up environment """
-    env = Environment(mode=args.mode)
+    env = Environment(mode='rgb_array', args, T=0)
+
+    print(env_data_name)
+    if env_data_name != "environment_1" and args.modified:
+        raise ValueError( env_data_name, ' does not support gate positon modification! ')
 
     state_dim = len(env.gates) + 9
 
@@ -137,13 +141,12 @@ def run(args):
 
     # Initialize policy
     action_dim = 1
-    state_dim = len(env.gates) + 9
     if args.policy_name == 'td3':
         from .TD3_image import TD3
-        policy = TD3(state_dim, action_dim, args.stack_size, max_action)
+        policy = TD3(action_dim, args.stack_size, max_action)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
-        policy = DDPG(state_dim, action_dim, args.stack_size, max_action, args.mode)
+        policy = DDPG(action_dim, args.stack_size, max_action)
     else:
       raise ValueError(
         args.policy_name + ' is not recognized as a valid policy')
@@ -156,7 +159,7 @@ def run(args):
 
     replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
 
-    state = env.reset()
+    state = env.reset(args, 0)
     #print('state = ', state) # debug
     total_timesteps = 0
     episode_num = 0
@@ -222,7 +225,7 @@ def run(args):
             policy.actor.eval() # set for batchnorm
 
             # Reset environment
-            new_state = env.reset()
+            new_state = env.reset(args, total_timesteps)
             done = False
             episode_num += 1
 
@@ -276,9 +279,8 @@ if __name__ == "__main__":
         help="Profile the program for performance")
     parser.add_argument("--modified", default=False,
         help="Modify the position of gates (only for environment_1)")
+    parser.add_argument("--mod_rate", default = int(5e2), type = int,
         help="Control the modification rate")
-    parser.add_argument("--mode", default = 'state',
-        help="Choose image or state, options are rgb_array and state")
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
 

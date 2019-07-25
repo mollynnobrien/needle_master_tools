@@ -10,11 +10,9 @@ GREEN = (0, 255, 0)
 two_pi = math.pi * 2
 VELOCITY = 50
 
-## gate pos modification
+## gate position modification
 POS = [[0.3,0.7,1.5707963267948966],
-       [0.4,0.7,1.5707963267948966],
        [0.5,0.7,1.5707963267948966],
-       [0.6,0.7,1.5707963267948966],
        [0.7,0.7,1.5707963267948966]]
 
 
@@ -74,7 +72,7 @@ class Environment:
                        self.episode % self.record_interval == 0)
         self.total_reward = 0.
         self.last_reward = 0.
-        self.modi_rate = args.modi_rate
+        self.mod_rate = args.mod_rate
 
         if self.filename is not None:
             with open(self.filename, 'r') as file:
@@ -96,9 +94,8 @@ class Environment:
             return ob
 
         elif self.mode == 'state':
-            state = self._get_state().reshape((1,-1))
-            state = torch.FloatTensor(state)
-            return state
+            state = self._get_state()
+            return state[0]
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
 
@@ -165,7 +162,7 @@ class Environment:
     '''
     Load an environment file.
     '''
-    def load(self, handle, T, args):
+    def load(self, handle, time, args):
 
         D = safe_load_line('Dimensions', handle)
         self.height = int(D[1])
@@ -177,10 +174,11 @@ class Environment:
         #print " - num gates=%d"%(self.ngates)
 
         ## calculate gate new position
-        if T//self.modi_rate <= len(POS)-1:
-            new_pos = POS[T//self.modi_rate]
-        else:
-            new_pos = POS[len(POS)-1]
+        if self.mod_rate is not None:
+            if time // self.mod_rate <= 2:
+                new_pos = POS[time // self.mod_rate]
+            else:
+                new_pos = POS[2]
 
         for _ in range(self.ngates):
             gate = Gate(self.width, self.height)
@@ -303,8 +301,7 @@ class Environment:
 
         if self.mode == 'state':
             """ else from state to action"""
-            state = self._get_state().reshape((1,-1))
-            state = torch.FloatTensor(state)
+            state = self._get_state()
             return state, reward, done
 
     def _surface_with_needle(self):
@@ -452,6 +449,7 @@ class Gate:
     '''
     def load(self, handle, new_pos, args):
 
+        print(args.modified)
         if args.modified:
             pos, cornersx, cornersy, topx, topy, bottomx, bottomy \
                 = self.modify_position(handle, new_pos)
@@ -502,6 +500,7 @@ class Gate:
         self.box = Polygon(self.corners)
         self.top_box = Polygon(self.top)
         self.bottom_box = Polygon(self.bottom)
+
 
 class Surface:
 
@@ -566,9 +565,6 @@ class Needle:
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
         self.w = math.pi             # face right
-        self.dx = 0.0
-        self.dy = 0.0
-        self.dw = 0.0
         self.corners = None
 
         self.length_const = 0.08

@@ -50,10 +50,11 @@ class NaivePrioritizedBuffer(object):
         self.buffer = []
         self.pos = 0
         self.priorities = np.zeros((capacity,), dtype=np.float32)
+        # Buffers to reuse memory
+        self.states = None
+        self.next_states = None
 
     def add(self, state, next_state, action, reward, done):
-        state = state.numpy()
-        next_state = next_state.numpy()
         assert state.ndim == next_state.ndim
         state = np.expand_dims(state, 0)
         next_state = np.expand_dims(next_state, 0)
@@ -78,21 +79,29 @@ class NaivePrioritizedBuffer(object):
         probs /= probs.sum()
 
         indices = np.random.choice(len(self.buffer), batch_size, p=probs)
-        samples = [self.buffer[idx] for idx in indices]
 
+        # Get the weights
         total = len(self.buffer)
         weights = (total * probs[indices]) ** (-beta)
         weights /= weights.max()
         weights = np.array(weights, dtype=np.float32)
 
+        samples = [self.buffer[idx] for idx in indices]
         batch = list(zip(*samples))
-        states = np.concatenate(batch[0])
-        actions = batch[2]
-        rewards = batch[3]
-        next_states = np.concatenate(batch[1])
-        dones = batch[4]
 
-        return np.array(states), np.array(next_states), np.array(actions), np.array(rewards).reshape(-1, 1), np.array(dones).reshape(-1, 1), indices, weights
+        if self.states is None:
+            self.states = np.array(np.concatenate(batch[0]), copy=False)
+            self.next_states = np.array(np.concatenate(batch[1]), copy=False)
+        else:
+            np.concatenate(batch[0], out=self.states)
+            np.concatenate(batch[1], out=self.next_states)
+
+        actions = np.array(batch[2], copy=False)
+        rewards = np.array(batch[3], copy=False).reshape(-1, 1)
+        dones = np.array(batch[4], copy=False).reshape(-1, 1)
+
+        return (self.states, self.next_states, actions, rewards, dones,
+            indices, weights)
 
     def update_priorities(self, batch_indices, batch_priorities):
         for idx, prio in list(zip(batch_indices, batch_priorities)):
