@@ -156,6 +156,7 @@ class DDPG(object):
 
         self.max_action = max_action
         self.action_dim = action_dim
+        self.mode = mode
         if mode == 'rgb_array':
             self.actor = Actor_image(state_dim, action_dim, img_stack, max_action).to(device)
             self.actor_target = Actor_image(state_dim, action_dim, img_stack, max_action).to(device)
@@ -176,15 +177,17 @@ class DDPG(object):
     def select_action(self, state):
         # Copy as uint8
         state = torch.from_numpy(state).unsqueeze(0).to(device).float()
-        state /= 255.0
+        if self.mode == 'rgb_array':
+            state /= 255.0
         return self.actor(state).cpu().data.numpy().flatten()
 
     def copy_sample_to_device(self, x, y, u, r, d, w, batch_size):
         # Copy as uint8
         x = torch.from_numpy(x).squeeze(1).to(device).float()
         y = torch.from_numpy(y).squeeze(1).to(device).float()
-        x /= 255.0 # Normalize
-        y /= 255.0 # Normalize
+        if self.mode == 'rgb_array':
+            x /= 255.0 # Normalize
+            y /= 255.0 # Normalize
         u = u.reshape((batch_size, self.action_dim))
         u = torch.FloatTensor(u).to(device)
         r = torch.FloatTensor(r).to(device)
