@@ -125,10 +125,10 @@ class Critic_image(nn.Module):
 
     def forward(self, x, u):
         for layer in self.encoder:
-                x = layer(x)
+            x = layer(x)
         x = torch.cat([x, u], 1)
         for layer in self.linear:
-                x = layer(x)
+            x = layer(x)
         return x
 
 class Critic_state(nn.Module):
@@ -148,7 +148,7 @@ class Critic_state(nn.Module):
     def forward(self, x, u):
         x = torch.cat([x, u], 1)
         for layer in self.linear:
-                x = layer(x)
+            x = layer(x)
         return x
 
 class DDPG(object):

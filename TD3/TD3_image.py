@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 import math
+import copy
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -19,9 +20,9 @@ class Flatten(torch.nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
-class Actor(nn.Module):
+class Actor_image(nn.Module):
     def __init__(self, action_dim, img_stack, max_action):
-        super(Actor, self).__init__()
+        super(Actor_image, self).__init__()
 
         self.encoder = torch.nn.ModuleList([  ## input size:[224, 224]
             torch.nn.Conv2d(img_stack*3, 16, 5, 2, padding=2),   ## output size: [16, 112, 112]
@@ -67,9 +68,34 @@ class Actor(nn.Module):
 
         return x
 
-class Critic(nn.Module):
+class Actor_state(nn.Module):
+    def __init__(self, state_dim, action_dim, max_action):
+        super(Actor_state, self).__init__()
+
+        self.linear = torch.nn.ModuleList([
+            torch.nn.Linear(state_dim, 400),
+            torch.nn.ReLU(),
+	        torch.nn.BatchNorm1d(400),
+	        torch.nn.Linear(400, 30),
+            torch.nn.ReLU(),
+	        torch.nn.BatchNorm1d(30),
+        ])
+
+        self.out_angular = nn.Linear(30, int(action_dim))
+        self.max_action = max_action
+
+    def forward(self, x):
+        for layer in self.linear:
+            x = layer(x)
+
+        x = self.out_angular(x)
+        x = self.max_action * torch.tanh(x)
+
+        return x
+
+class Critic_image(nn.Module):
     def __init__(self, action_dim, img_stack):
-        super(Critic, self).__init__()
+        super(Critic_image, self).__init__()
         
         self.encoder_1 = torch.nn.ModuleList([  ## input size:[224, 224]
 	        torch.nn.Conv2d(img_stack * 3, 16, 5, 2, padding=2),  ## output size: [16, 112, 112]
@@ -131,29 +157,19 @@ class Critic(nn.Module):
 
     def forward(self, x, u):       
         
-        x1 = x
+        x1 = copy.copy(x)
         for layer in self.encoder_1:
-            x1 = layer(x1)      
-        counter = 0
+            x1 = layer(x1)
+        x1 = torch.cat([x1, u], 1)
         for layer in self.linear_1:
-            counter += 1
-            if counter == 1:
-                x1 = torch.cat([x1, u], 1)
-                x1 = layer(x1)
-            else:
-                x1 = layer(x1)
+	        x1 = layer(x1)
         
-        x2 = x
+        x2 = copy.copy(x)
         for layer in self.encoder_2:
             x2 = layer(x2)
-        counter = 0
+        x2 = torch.cat([x2, u], 1)
         for layer in self.linear_2:
-            counter += 1
-            if counter == 1:
-                x2 = torch.cat([x2, u], 1)
-                x2 = layer(x2)
-            else:
-                x2 = layer(x2)
+	        x2 = layer(x2)
         
         return x1, x2
 
@@ -166,29 +182,101 @@ class Critic(nn.Module):
             x = layer(x)
         return x
 
+class Critic_state(nn.Module):
+	def __init__(self, state_dim, action_dim):
+		super(Critic_state, self).__init__()
+
+		self.linear_1 = torch.nn.ModuleList([
+			torch.nn.Linear(state_dim + action_dim, 400),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm1d(400),
+			torch.nn.Linear(400, 30),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm1d(30),
+			torch.nn.Linear(30, 1),
+		])
+
+		self.linear_2 = torch.nn.ModuleList([
+			torch.nn.Linear(state_dim + action_dim, 400),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm1d(400),
+			torch.nn.Linear(400, 30),
+			torch.nn.ReLU(),
+			torch.nn.BatchNorm1d(30),
+			torch.nn.Linear(30, 1),
+		])
+
+	def forward(self, x, u):
+
+		x1 = torch.cat([x, u], 1)
+		for layer, counter in zip(self.linear_1, range(len(self.linear_1))):
+			x1 = layer(x1)
+
+		x2 = torch.cat([x, u], 1)
+		for layer, counter in zip(self.linear_2, range(len(self.linear_2))):
+			x2 = layer(x2)
+
+		return x1, x2
+
+	def Q1(self, x, u):
+
+		x = torch.cat([x, u], 1)
+		for layer in self.linear_1:
+			x = layer(x)
+		return x
+
 class TD3(object):
-    def __init__(self, action_dim,  img_stack, max_action):
+    def __init__(self, state_dim, action_dim,  img_stack, max_action, mode):
 
         self.action_dim = action_dim
         self.max_action = max_action
+        self.mode = mode
 
-        self.actor = Actor(action_dim, img_stack, max_action).to(device)
-        self.actor_target = Actor(action_dim, img_stack, max_action).to(device)
+        if mode == 'rgb_array':
+	        self.actor = Actor_image(action_dim, img_stack, max_action).to(device)
+	        self.actor_target = Actor_image(action_dim, img_stack, max_action).to(device)
+	        self.critic = Critic_image(action_dim, img_stack).to(device)
+	        self.critic_target = Critic_image(action_dim, img_stack).to(device)
+        elif mode == 'state':
+	        self.actor = Actor_state(state_dim, action_dim, max_action).to(device)
+	        self.actor_target = Actor_state(state_dim, action_dim, max_action).to(device)
+	        self.critic = Critic_state(state_dim, action_dim).to(device)
+	        self.critic_target = Critic_state(state_dim, action_dim).to(device)
+
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters())
-        self.actor_loss = []
 
-        self.critic = Critic(action_dim, img_stack).to(device)
-        self.critic_target = Critic(action_dim, img_stack).to(device)
+
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters())
-        self.critic_loss = []
 
         # self.max_action = max_action
 
     def select_action(self, state):
-        state = state.float().to(device)
+        # Copy as uint8
+        if self.mode == 'rgb_array':
+            state = torch.from_numpy(state).unsqueeze(0).to(device).float()
+            state /= 255.0
+        else:
+            state = torch.from_numpy(state).to(device).float()
+            # print("state size: " + str(state.size()))
         return self.actor(state).cpu().data.numpy().flatten()
+
+    def copy_sample_to_device(self, x, y, u, r, d, w, batch_size):
+        # Copy as uint8
+        x = torch.from_numpy(x).squeeze(1).to(device).float()
+        # print("x size: " + str(x.size()))
+        y = torch.from_numpy(y).squeeze(1).to(device).float()
+        if self.mode == 'rgb_array':
+            x /= 255.0 # Normalize
+            y /= 255.0 # Normalize
+        u = u.reshape((batch_size, self.action_dim))
+        u = torch.FloatTensor(u).to(device)
+        r = torch.FloatTensor(r).to(device)
+        d = torch.FloatTensor(1 - d).to(device)
+        w = w.reshape((batch_size, -1))
+        w = torch.FloatTensor(w).to(device)
+        return x, y, u, r, d, w
 
     def train(self, replay_buffer, iterations, beta_PER, args):
 
@@ -202,20 +290,9 @@ class TD3(object):
         for it in range(iterations):
 
             # Sample replay buffer
-            x, y, u, r, d, indices, w = replay_buffer.sample(batch_size, beta = beta_PER)
-            state = torch.FloatTensor(x).squeeze(1).to(device)
-#             print('state size: ' +str(state.size()))
-            u = u.reshape((batch_size, self.action_dim))
-            action = torch.FloatTensor(u).to(device)
-#             print('action size: ' +str(action.size()))
-            next_state = torch.FloatTensor(y).squeeze(1).to(device)
-#             print('next state size: ' +str(next_state.size()))
-            done = torch.FloatTensor(1 - d).to(device)
-            # print("reward out")
-            # print(r)
-            reward = torch.FloatTensor(r).to(device)
-            w = w.reshape((batch_size,-1))
-            weights = torch.FloatTensor(w).to(device)
+            x, y, u, r, d, indices, w = replay_buffer.sample(batch_size, beta=beta_PER)
+            state, next_state, action, reward, done, weights = \
+                    self.copy_sample_to_device(x, y, u, r, d, w, batch_size)
 
             # Select action according to policy and add clipped noise
             noise = torch.FloatTensor(u).data.normal_(0, policy_noise).to(device)
@@ -236,7 +313,6 @@ class TD3(object):
             critic_loss =  weights * ((current_Q1 - target_Q).pow(2) + (current_Q2 - target_Q).pow(2))
             prios = critic_loss + 1e-5
             critic_loss = critic_loss.mean()
-            self.critic_loss.append(critic_loss)
 
             # Optimize the critic
             self.critic_optimizer.zero_grad()
@@ -251,7 +327,6 @@ class TD3(object):
 
                 # Compute actor loss
                 actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
-                self.actor_loss.append(actor_loss)
 
                 # Optimize the actor
                 self.actor_optimizer.zero_grad()

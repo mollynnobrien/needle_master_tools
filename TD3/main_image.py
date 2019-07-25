@@ -139,7 +139,7 @@ def run(args):
     state_dim = len(env.gates) + 9
     if args.policy_name == 'td3':
         from .TD3_image import TD3
-        policy = TD3(state_dim, action_dim, args.stack_size, max_action)
+        policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
         policy = DDPG(state_dim, action_dim, args.stack_size, max_action, args.mode)
