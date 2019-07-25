@@ -126,14 +126,16 @@ class DDPG(object):
 
 
     def select_action(self, state):
-        state = torch.FloatTensor(state).unsqueeze(0).to(device)
+        # Copy as uint8
+        state = torch.from_numpy(state).unsqueeze(0).to(device).float()
         state /= 255.0
         return self.actor(state).cpu().data.numpy().flatten()
 
     def copy_sample_to_device(self, x, y, u, r, d, w, batch_size):
-        x = torch.FloatTensor(x).squeeze(1).to(device)
+        # Copy as uint8
+        x = torch.from_numpy(x).squeeze(1).to(device).float()
+        y = torch.from_numpy(y).squeeze(1).to(device).float()
         x /= 255.0 # Normalize
-        y = torch.FloatTensor(y).squeeze(1).to(device)
         y /= 255.0 # Normalize
         u = u.reshape((batch_size, self.action_dim))
         u = torch.FloatTensor(u).to(device)
