@@ -12,7 +12,9 @@ VELOCITY = 50
 
 ## gate position modification
 POS = [[0.3,0.7,1.5707963267948966],
+       [0.4,0.7,1.5707963267948966],
        [0.5,0.7,1.5707963267948966],
+       [0.6,0.7,1.5707963267948966],
        [0.7,0.7,1.5707963267948966]]
 
 
@@ -28,7 +30,7 @@ class Environment:
     record_interval = 40
     record_interval_t = 3
 
-    def __init__(self, args, mode, T):
+    def __init__(self, filename, mode, stack_size, mod_rate, move_t):
 
         self.t = 0
         self.height = 0
@@ -36,27 +38,28 @@ class Environment:
         self.needle = None
         self.max_time = 150
         self.next_gate = None
-        self.filename = args.filename
+        self.filename = filename
         self.mode = mode
         self.episode = 0
         self.status = None
         self.total_timesteps = 0
         self.Reward = []
         """ create image stack """
-        self.stack_size = args.stack_size
+        self.stack_size = stack_size
         self.log_file = None
+        self.mod_rate = mod_rate
 
         self.is_init = False  # One-time stuff to do at reset
         # Create screen for scaling down
         self.scaled_screen = pygame.Surface((224, 224))
         pygame.font.init()
-        self.reset(args, T)
+        self.reset(move_t)
 
     def sample_action(self):
         action = np.array([random.uniform(-1, -1), random.uniform(1, 1)])
         return action
 
-    def reset(self, args, T):
+    def reset(self, t):
         ''' Create a new environment. Currently based on attached filename '''
         self.done = False
         self.ngates = 0
@@ -72,11 +75,10 @@ class Environment:
                        self.episode % self.record_interval == 0)
         self.total_reward = 0.
         self.last_reward = 0.
-        self.mod_rate = args.mod_rate
 
         if self.filename is not None:
             with open(self.filename, 'r') as file:
-                self.load(file, T, args)
+                self.load(file, t)
 
         self.needle = Needle(self.width, self.height, self.log_file)
 
@@ -94,8 +96,8 @@ class Environment:
             return ob
 
         elif self.mode == 'state':
-            state = self._get_state()
-            return state[0]
+            state = self._get_state().reshape((1,-1))
+            return state
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
 
@@ -162,7 +164,7 @@ class Environment:
     '''
     Load an environment file.
     '''
-    def load(self, handle, time, args):
+    def load(self, handle, time):
 
         D = safe_load_line('Dimensions', handle)
         self.height = int(D[1])
@@ -174,15 +176,16 @@ class Environment:
         #print " - num gates=%d"%(self.ngates)
 
         ## calculate gate new position
+
         if self.mod_rate is not None:
-            if time // self.mod_rate <= 2:
+            if time // self.mod_rate <= (len(POS)-1):
                 new_pos = POS[time // self.mod_rate]
             else:
-                new_pos = POS[2]
+                new_pos = POS[len(POS)-1]
 
         for _ in range(self.ngates):
             gate = Gate(self.width, self.height)
-            gate.load(handle, new_pos, args)
+            gate.load(handle, new_pos)
             self.gates.append(gate)
 
         if self.ngates > 0:
@@ -301,7 +304,7 @@ class Environment:
 
         if self.mode == 'state':
             """ else from state to action"""
-            state = self._get_state()
+            state = self._get_state().reshape((1,-1))
             return state, reward, done
 
     def _surface_with_needle(self):
@@ -447,20 +450,20 @@ class Gate:
     '''
     Load Gate from file at the current position.
     '''
-    def load(self, handle, new_pos, args):
+    def load(self, handle, new_pos):
 
-        print(args.modified)
-        if args.modified:
-            pos, cornersx, cornersy, topx, topy, bottomx, bottomy \
-                = self.modify_position(handle, new_pos)
-        else:
-            pos = safe_load_line('GatePos', handle)
-            cornersx = safe_load_line('GateX', handle)
-            cornersy = safe_load_line('GateY', handle)
-            topx = safe_load_line('TopX', handle)
-            topy = safe_load_line('TopY', handle)
-            bottomx = safe_load_line('BottomX', handle)
-            bottomy = safe_load_line('BottomY', handle)
+        # print(args.modified)
+        # if args.modified:
+        pos, cornersx, cornersy, topx, topy, bottomx, bottomy \
+            = self.modify_position(handle, new_pos)
+        # else:
+        #     pos = safe_load_line('GatePos', handle)
+        #     cornersx = safe_load_line('GateX', handle)
+        #     cornersy = safe_load_line('GateY', handle)
+        #     topx = safe_load_line('TopX', handle)
+        #     topy = safe_load_line('TopY', handle)
+        #     bottomx = safe_load_line('BottomX', handle)
+        #     bottomy = safe_load_line('BottomY', handle)
 
         self.x = self.env_width * float(pos[0])
         self.y = self.env_height * float(pos[1])
@@ -565,6 +568,9 @@ class Needle:
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
         self.w = math.pi             # face right
+        self.dx = 0.0
+        self.dy = 0.0
+        self.dw = 0.0
         self.corners = None
 
         self.length_const = 0.08
