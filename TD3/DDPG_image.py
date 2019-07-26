@@ -18,12 +18,16 @@ class Flatten(torch.nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
+# We have greyscale, and then one RGB
+def calc_features(img_stack):
+    return img_stack - 1 + 3
+
 class Actor(nn.Module):
     def __init__(self, action_dim, img_stack, max_action):
         super(Actor, self).__init__()
 
         self.encoder = torch.nn.ModuleList([  ## input size:[img_stack, 224, 224]
-            torch.nn.Conv2d(img_stack*3, 16, 5, 2, padding=2), ## [16, 112, 112]
+            torch.nn.Conv2d(calc_features(img_stack), 16, 5, 2, padding=2), ## [16, 112, 112]
             torch.nn.ReLU(),
             torch.nn.BatchNorm2d(16),
             torch.nn.Conv2d(16, 32, 5 ,2, padding=2),   ## [32, 56, 56]
@@ -71,7 +75,7 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
 
         self.encoder = torch.nn.ModuleList([  ## input size:[224, 224]
-            torch.nn.Conv2d(img_stack*3, 16, 5, 2, padding=2),  ## [16, 112, 112]
+            torch.nn.Conv2d(calc_features(img_stack), 16, 5, 2, padding=2),  ## [16, 112, 112]
             torch.nn.ReLU(),
             torch.nn.BatchNorm2d(16),
             torch.nn.Conv2d(16, 32, 5, 2, padding=2),  ## [32, 56, 56]
