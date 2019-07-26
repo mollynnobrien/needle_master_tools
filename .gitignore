@@ -3,6 +3,9 @@
 /*.egg-info
 *.png
 .ipynb-checkpoints/
+*.py.orig
 *.orig
 *.gpg
 /build/
+/tags
+*.png
