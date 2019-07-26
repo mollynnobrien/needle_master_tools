@@ -82,7 +82,7 @@ def run(args):
         os.path.basename(args.filename))[0]
 
     def make_dirs(args):
-        path = pjoin(env_data_name, args.policy_name)
+        path = pjoin(env_data_name, args.policy_name, args.mode)
 
         save_p = path + '_out'
         test_p = path + '_test'
@@ -112,9 +112,7 @@ def run(args):
     log_f = open('log_' + base_filename + '.txt', 'w')
 
     """ setting up environment """
-    env = Environment(mode='rgb_array', stack_size=args.img_stack,
-        filename=args.filename)
-    state_dim = len(env.gates) + 9
+    env = Environment(filename = args.filename, mode=args.mode, stack_size = args.stack_size)
 
     """ setting up PID controller """
     #action_constrain = [10, np.pi/20]
@@ -137,12 +135,13 @@ def run(args):
 
     # Initialize policy
     action_dim = 1
+    state_dim = len(env.gates) + 9
     if args.policy_name == 'td3':
         from .TD3_image import TD3
-        policy = TD3(action_dim, args.img_stack, max_action)
+        policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
-        policy = DDPG(action_dim, args.img_stack, max_action)
+        policy = DDPG(state_dim, action_dim, args.stack_size, max_action, args.mode)
     else:
       raise ValueError(
         args.policy_name + ' is not recognized as a valid policy')
@@ -201,7 +200,7 @@ def run(args):
 
         ## Train over the past episode
         if done:
-            print "Training. episode ", episode_num, "R =", env.total_reward # debug
+            print ("Training. episode ", episode_num, "R =", env.total_reward) # debug
 
             ## training
             str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}'.format(
@@ -268,11 +267,13 @@ if __name__ == "__main__":
         help='Frequency of delayed policy updates')
     parser.add_argument("--max_size", default=5e4, type=int,
         help='Frequency of delayed policy updates')
-    parser.add_argument("--img_stack", default=2, type=int,
+    parser.add_argument("--stack_size", default=2, type=int,
         help='How much history to use')
     parser.add_argument("--evaluation_episodes", default=6, type=int)
     parser.add_argument("--profile", default=False, action="store_true",
         help="Profile the program for performance")
+    parser.add_argument("--mode", default = 'state',
+        help="Choose image or state, options are rgb_array and state")
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
 

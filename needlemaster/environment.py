@@ -32,7 +32,6 @@ class Environment:
 
     def __init__(self, mode, stack_size, log_file=None,
             filename=None, max_time=150):
-
         self.t = 0
         self.height = 0
         self.width = 0
@@ -100,8 +99,8 @@ class Environment:
             return ob
 
         elif self.mode == 'state':
-            state = self._get_state()
-            return state[0]
+            state = self._get_state().reshape((1,-1))
+            return state
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
 
@@ -298,7 +297,7 @@ class Environment:
 
         if self.mode == 'state':
             """ else from state to action"""
-            state = self._get_state()
+            state = self._get_state().reshape((1,-1))
             return state, reward, done
 
     def _surface_with_needle(self):
@@ -454,7 +453,6 @@ class Gate:
         self.top_box = Polygon(self.top)
         self.bottom_box = Polygon(self.bottom)
 
-
 class Surface:
 
     def __init__(self, env_width, env_height):
@@ -518,6 +516,9 @@ class Needle:
         self.x = 96     # read off from saved demonstrations as start x
         self.y = env_height - 108    # read off from saved demonstrations as start y
         self.w = math.pi             # face right
+        self.dx = 0.0
+        self.dy = 0.0
+        self.dw = 0.0
         self.corners = None
 
         self.length_const = 0.08
