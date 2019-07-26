@@ -47,10 +47,10 @@ class Actor_image(nn.Module):
         self.linear = torch.nn.ModuleList([
             torch.nn.Linear(latent_dim, 400),
             torch.nn.ReLU(),
-                torch.nn.BatchNorm1d(400),
-                torch.nn.Linear(400, 30),
+            torch.nn.BatchNorm1d(400),
+            torch.nn.Linear(400, 30),
             torch.nn.ReLU(),
-                torch.nn.BatchNorm1d(30),
+            torch.nn.BatchNorm1d(30),
         ])
 
         self.out_angular = nn.Linear(30, int(action_dim))
@@ -237,7 +237,7 @@ class DDPG(object):
             self.critic_optimizer.step()
 
             # Compute actor loss
-            actor_loss = -self.critic(state, self.actor(state)).mean()/100
+            actor_loss = -self.critic(state, self.actor(state)).mean()
             #actor_loss.data = -1
 
             # Optimize the actor
