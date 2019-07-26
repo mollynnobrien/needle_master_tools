@@ -121,11 +121,11 @@ def run(args):
     #pid = PID( parameter, env.width, env.height )
 
     """ setting up action bound for RL """
-    max_action = 1/4 * math.pi
+    max_action = 0.25 * math.pi
 
     """ parameters for epsilon declay """
-    epsilon_start = 1
-    epsilon_final = 0.01
+    epsilon_start = 0.5
+    epsilon_final = 0.001
     decay_rate = 25000
     ep_decay = []
 
@@ -183,14 +183,15 @@ def run(args):
         # print("action based on PID: " + str(action))
 
         """ action selected based on pure policy """
-        action = policy.select_action(state)
+        action2 = policy.select_action(state)
         #log_f.write('action based on policy:{}\n'.format(action)) # debug
 
-        if args.expl_noise != 0:
-            # state_pid = state[0:3]
-            # guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
-            noise = np.random.normal(0, args.expl_noise, size=action_dim)
-            action = np.clip(action + noise, -max_action, max_action)
+        # state_pid = state[0:3]
+        # guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
+        noise = np.random.normal(0, args.expl_noise, size=action_dim)
+        action = np.clip(action2 + noise, -max_action, max_action)
+
+        #print "action: ", action, "noise: ", noise, "action2: ", action2 # debug
 
         # Perform action
         new_state, reward, done = env.step(action)
