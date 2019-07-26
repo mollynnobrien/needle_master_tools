@@ -126,7 +126,7 @@ class Environment:
 
         if save_image:
             # draw text
-            myfont = pygame.font.SysFont('Arial', 18)
+            myfont = pygame.font.SysFont('Arial', 13)
             debug = False
             if debug:
                 if self.next_gate is not None:
@@ -139,8 +139,8 @@ class Environment:
                 else:
                     reward_s = ""
             else:
-                reward_s = "TR:{:.5f}, R:{:.5f}".format(
-                        self.total_reward, self.last_reward)
+                reward_s = "w:{:.5f}, x:{:.5f}, y:{:.5f}".format(
+                        self.needle.w, self.needle.x, self.needle.y)
             txtSurface = myfont.render(reward_s, False, (0, 0, 0))
             surface.blit(txtSurface, (10, 10))
 
@@ -553,8 +553,6 @@ class Needle:
         x = self.x
         y = self.env_height - self.y
 
-        top_w = w - math.pi / 2
-        bot_w = w + math.pi / 2
         length = self.length_const * self.scale
 
         lcosw = length * math.cos(w)
@@ -600,8 +598,8 @@ class Needle:
         """ 1 dimension action """
         dw = action[0]
         dw = math.pi if dw > math.pi else -math.pi if dw < -math.pi else dw
-        dx = math.cos(w + dw - math.pi) * VELOCITY
-        dy = -math.sin(w + dw - math.pi) * VELOCITY
+        dx = math.cos(math.pi - w - dw) * VELOCITY
+        dy = -math.sin(math.pi - w - dw) * VELOCITY
 
         if self.log_file:
             self.log_file.write('action:{}\n'.format(action[0]))
