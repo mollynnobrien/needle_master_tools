@@ -124,7 +124,8 @@ def run(args):
     max_action = 0.25 * math.pi
 
     """ parameters for epsilon declay """
-    epsilon_start = 0.5
+    greedy_decay_rate = 100000
+    epsilon_start = args.expl_noise
     epsilon_final = 0.001
     decay_rate = 25000
     ep_decay = []
@@ -159,6 +160,7 @@ def run(args):
     total_timesteps = 0
     episode_num = 0
     done = False
+    zero_noise = np.zeros((action_dim,))
 
     policy.actor.eval() # set for batchnorm
 
@@ -172,10 +174,18 @@ def run(args):
                 env, args, policy, total_timesteps, test_path, result_path)
 
         """ exploration rate decay """
-        args.expl_noise = ((epsilon_start - epsilon_final) *
-            math.exp(-1. * total_timesteps / decay_rate))
-        ep_decay.append(args.expl_noise)
-        # log_f.write('epsilon decay:{}\n'.format(args.expl_noise)) # debug
+
+        # Check if we should add noise
+        percent_greedy = 1. - max(1., total_timesteps / greedy_decay_rate)
+        epsilon_greedy = args.epsilon_greedy * percent_greedy
+        if random.random() < epsilon_greedy:
+            noise_std = ((args.explo_noise - epsilon_final) *
+                math.exp(-1. * total_timesteps / decay_rate))
+            ep_decay.append(noise_std)
+            # log_f.write('epsilon decay:{}\n'.format(noise_std)) # debug
+            noise = np.random.normal(0, noise_std, size=action_dim)
+        else:
+            noise = zero_noise
 
         # """ using PID controller """
         # state_pid = state[0:3]
@@ -184,11 +194,9 @@ def run(args):
 
         """ action selected based on pure policy """
         action2 = policy.select_action(state)
-        #log_f.write('action based on policy:{}\n'.format(action)) # debug
 
         # state_pid = state[0:3]
         # guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
-        noise = np.random.normal(0, args.expl_noise, size=action_dim)
         action = np.clip(action2 + noise, -max_action, max_action)
 
         #print "action: ", action, "noise: ", noise, "action2: ", action2 # debug
@@ -252,8 +260,10 @@ if __name__ == "__main__":
         help='Timesteps before learning')
     parser.add_argument("--save_models", action= "store",
         help='Whether or not models are saved')
-    parser.add_argument("--expl_noise", default=0.2, type=float,
-        help='Std of Gaussian exploration noise')
+    parser.add_argument("--expl_noise", default=0.5, type=float,
+        help='Starting std of Gaussian exploration noise')
+    parser.add_argument("--epsilon_greedy", default=0.08, type=float,
+        help='Starting percentage of choosing random noise')
     parser.add_argument("--batch_size", default=32, type=int,
         help='Batch size for both actor and critic')
     parser.add_argument("--discount", default=0.99, type=float,
