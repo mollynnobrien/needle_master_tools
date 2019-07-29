@@ -139,8 +139,10 @@ class Environment:
                 else:
                     reward_s = ""
             else:
-                reward_s = "w:{:.5f}, x:{:.5f}, y:{:.5f}".format(
-                        self.needle.w, self.needle.x, self.needle.y)
+                reward_s = "TR:{:.5f}, R:{:.5f}".format(
+                        self.total_reward, self.last_reward)
+                #reward_s = "w:{:.5f}, x:{:.5f}, y:{:.5f}".format(
+                #        self.needle.w, self.needle.x, self.needle.y)
             txtSurface = myfont.render(reward_s, False, (0, 0, 0))
             surface.blit(txtSurface, (10, 10))
 
@@ -258,10 +260,15 @@ class Environment:
                 reward += (self.last_dist - dist)/1000
             self.last_dist = dist
 
+        # Time penalty
+        # Makes circles not rewarding
+        if not done:
+            reward -= 0.00001
+
         # Check for leaving window
         if (self.needle.x < 0 or self.needle.x > self.width or
                 self.needle.y < 0 or self.needle.y > self.height):
-            #reward -= 50
+            reward -= 50
             done = True
 
         if self._deep_tissue_intersect():
