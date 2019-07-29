@@ -65,7 +65,8 @@ class Actor_image(nn.Module):
             x = layer(x)
 
         x = self.out_angular(x)
-        x = self.max_action * torch.tanh(x)
+        x = torch.clamp(x, min=-1., max=1.) * self.max_action
+        #x = self.max_action * torch.tanh(x)
 
         return x
 
@@ -74,15 +75,15 @@ class Actor_state(nn.Module):
         super(Actor_state, self).__init__()
 
         self.linear = torch.nn.ModuleList([
-            torch.nn.Linear(state_dim, 400),
+            torch.nn.Linear(state_dim, 100),
             torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(400),
-            torch.nn.Linear(400, 30),
+            torch.nn.BatchNorm1d(100),
+            torch.nn.Linear(100, 40),
             torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(30),
+            torch.nn.BatchNorm1d(40),
         ])
 
-        self.out_angular = nn.Linear(30, int(action_dim))
+        self.out_angular = nn.Linear(40, int(action_dim))
         self.max_action = max_action
 
     def forward(self, x):
@@ -90,7 +91,8 @@ class Actor_state(nn.Module):
             x = layer(x)
 
         x = self.out_angular(x)
-        x = self.max_action * torch.tanh(x)
+        x = torch.clamp(x, min=-1., max=1.) * self.max_action
+        #x = self.max_action * torch.tanh(x)
 
         return x
 
@@ -140,13 +142,13 @@ class Critic_state(nn.Module):
         super(Critic_state, self).__init__()
 
         self.linear = torch.nn.ModuleList([
-            torch.nn.Linear(state_dim + action_dim, 400),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(400),
-            torch.nn.Linear(400, 100),
+            torch.nn.Linear(state_dim + action_dim, 100),
             torch.nn.ReLU(),
             torch.nn.BatchNorm1d(100),
-            torch.nn.Linear(100, 1),
+            torch.nn.Linear(100, 40),
+            torch.nn.ReLU(),
+            torch.nn.BatchNorm1d(40),
+            torch.nn.Linear(40, 1),
         ])
 
     def forward(self, x, u):
