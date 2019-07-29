@@ -60,7 +60,7 @@ class Environment:
         action = np.array([random.uniform(-1, -1), random.uniform(1, 1)])
         return action
 
-    def reset(self):
+    def reset(self, random_needle=False):
         ''' Create a new environment. Currently based on attached filename '''
         self.done = False
         self.ngates = 0
@@ -81,7 +81,8 @@ class Environment:
             with open(self.filename, 'r') as file:
                 self.load(file)
 
-        self.needle = Needle(self.width, self.height, self.log_file)
+        self.needle = Needle(self.width, self.height,
+                self.log_file, random=random_needle)
 
         # Assume the width and height won't change
         # Save the Surface creation
@@ -519,10 +520,15 @@ class Needle:
 
     # Assume w=0 points to the negative x-axis
 
-    def __init__(self, env_width, env_height, log_file):
-        self.x = 96     # read off from saved demonstrations as start x
-        self.y = env_height - 108    # read off from saved demonstrations as start y
-        self.w = math.pi             # face right
+    def __init__(self, env_width, env_height, log_file, random=False):
+        if random:
+            self.x = random.randint(0, env_width - 1)
+            self.y = random.randit(0, env_height - 1)
+            self.w = random.random() * two_pi
+        else:
+            self.x = 96
+            self.y = env_height - 108
+            self.w = math.pi # face right
         self.dx = 0.0
         self.dy = 0.0
         self.dw = 0.0

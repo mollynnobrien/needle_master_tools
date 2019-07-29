@@ -14,7 +14,7 @@ feat_size = 7
 latent_dim = feat_size * feat_size * 256
 
 ''' Utilities '''
-class Flatten(torch.nn.Module):
+class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
@@ -22,139 +22,132 @@ class Flatten(torch.nn.Module):
 def calc_features(img_stack):
     return img_stack - 1 + 3
 
-class Actor_image(nn.Module):
-    def __init__(self, action_dim, img_stack, max_action):
-        super(Actor_image, self).__init__()
-        self.encoder = torch.nn.ModuleList([  ## input size:[img_stack, 224, 224]
-            torch.nn.Conv2d(calc_features(img_stack), 16, 5, 2, padding=2), ## [16, 112, 112]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(16),
-            torch.nn.Conv2d(16, 32, 5 ,2, padding=2),   ## [32, 56, 56]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.Conv2d(32, 64, 5, 2, padding=2),   ## [64, 28, 28]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.Conv2d(64, 128, 5, 2, padding=2),   ## [128, 14, 14]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.Conv2d(128, 256, 5, 2, padding=2),  ## [256, 7, 7]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(256),
+class BaseImage(nn.Module):
+    def __init__(self, img_stack):
+        super(BaseImage, self).__init__()
+        self.encoder = nn.Sequential(  ## input size:[img_stack, 224, 224]
+            nn.Conv2d(calc_features(img_stack), 16, 5, 2, padding=2), ## [16, 112, 112]
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+            nn.Conv2d(16, 32, 5 ,2, padding=2),   ## [32, 56, 56]
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.Conv2d(32, 64, 5, 2, padding=2),   ## [64, 28, 28]
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 128, 5, 2, padding=2),   ## [128, 14, 14]
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.Conv2d(128, 256, 5, 2, padding=2),  ## [256, 7, 7]
+            nn.ReLU(),
+            nn.BatchNorm2d(256),
             Flatten(),   ## 256*7*7
-        ])
+        )
 
-        self.linear = torch.nn.ModuleList([
-            torch.nn.Linear(latent_dim, 400),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(400),
-            torch.nn.Linear(400, 30),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(30),
-        ])
+class ImageToPos(BaseImage):
+    ''' Class converting the image to a position of the needle.
+        We train on this to accelerate RL training off images
+    '''
+    def __init__(self, img_stack):
+        super(ImageToPos, self).__init__(img_stack)
 
-        self.out_angular = nn.Linear(30, int(action_dim))
+        self.linear = nn.Sequential(
+            nn.Linear(latent_dim, 400),
+            nn.ReLU(),
+            nn.BatchNorm1d(400),
+            nn.Linear(400, 100),
+            nn.ReLU(),
+            nn.BatchNorm1d(100),
+            nn.Linear(100, 3) # x, y, w
+        )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.linear(x)
+        return x
+
+class ActorImage(BaseImage):
+    def __init__(self, action_dim, img_stack, max_action):
+        super(ActorImage, self).__init__(img_stack)
+
+        self.linear = nn.Sequential(
+            nn.Linear(latent_dim, 400),
+            nn.ReLU(),
+            nn.BatchNorm1d(400),
+            nn.Linear(400, 100),
+            nn.ReLU(),
+            nn.BatchNorm1d(100),
+        )
+
+        self.out_angular = nn.Linear(100, int(action_dim))
         self.max_action = max_action
 
     def forward(self, x):
-        # print("round.....")
-        for layer in self.encoder:
-            x = layer(x)
-            # print(x.size())
-        for layer in self.linear:
-            x = layer(x)
-
+        x = self.encoder(x)
+        x = linear(x)
         x = self.out_angular(x)
         x = torch.clamp(x, min=-1., max=1.) * self.max_action
-        #x = self.max_action * torch.tanh(x)
-
         return x
 
-class Actor_state(nn.Module):
+class ActorState(nn.Module):
     def __init__(self, state_dim, action_dim, max_action):
-        super(Actor_state, self).__init__()
+        super(ActorState, self).__init__()
 
-        self.linear = torch.nn.ModuleList([
-            torch.nn.Linear(state_dim, 100),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(100),
-            torch.nn.Linear(100, 40),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(40),
-        ])
+        self.linear = nn.Sequential(
+            nn.Linear(state_dim, 100),
+            nn.ReLU(),
+            nn.BatchNorm1d(100),
+            nn.Linear(100, 40),
+            nn.ReLU(),
+            nn.BatchNorm1d(40),
+        )
 
         self.out_angular = nn.Linear(40, int(action_dim))
         self.max_action = max_action
 
     def forward(self, x):
-        for layer in self.linear:
-            x = layer(x)
-
+        x = self.linear(x)
         x = self.out_angular(x)
         x = torch.clamp(x, min=-1., max=1.) * self.max_action
-        #x = self.max_action * torch.tanh(x)
-
         return x
 
-class Critic_image(nn.Module):
+class CriticImage(BaseImage):
     def __init__(self, action_dim, img_stack):
-        super(Critic_image, self).__init__()
+        super(CriticImage, self).__init__(img_stack)
 
-        self.encoder = torch.nn.ModuleList([  ## input size:[224, 224]
-            torch.nn.Conv2d(calc_features(img_stack), 16, 5, 2, padding=2),  ## [16, 112, 112]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(16),
-            torch.nn.Conv2d(16, 32, 5, 2, padding=2),  ## [32, 56, 56]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(32),
-            torch.nn.Conv2d(32, 64, 5, 2, padding=2),  ## [64, 28, 28]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.Conv2d(64, 128, 5, 2, padding=2),  ## [128, 14, 14]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.Conv2d(128, 256, 5, 2, padding=2),  ## [256, 7, 7]
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm2d(256),
-            Flatten(),  ## output: 256*7*7
-        ])
-
-        self.linear = torch.nn.ModuleList([
-            torch.nn.Linear(latent_dim + action_dim, 400),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(400),
-            torch.nn.Linear(400, 100),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(100),
-            torch.nn.Linear(100, 1),
-        ])
+        self.linear = nn.Sequential(
+            nn.Linear(latent_dim + action_dim, 400),
+            nn.ReLU(),
+            nn.BatchNorm1d(400),
+            nn.Linear(400, 100),
+            nn.ReLU(),
+            nn.BatchNorm1d(100),
+            nn.Linear(100, 1),
+        )
 
     def forward(self, x, u):
-        for layer in self.encoder:
-            x = layer(x)
+        x = self.encoder(x)
         x = torch.cat([x, u], 1)
-        for layer in self.linear:
-            x = layer(x)
+        x = self.linear(x)
         return x
 
-class Critic_state(nn.Module):
+class CriticState(nn.Module):
     def __init__(self, state_dim, action_dim):
-        super(Critic_state, self).__init__()
+        super(CriticState, self).__init__()
 
-        self.linear = torch.nn.ModuleList([
-            torch.nn.Linear(state_dim + action_dim, 100),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(100),
-            torch.nn.Linear(100, 40),
-            torch.nn.ReLU(),
-            torch.nn.BatchNorm1d(40),
-            torch.nn.Linear(40, 1),
-        ])
+        self.linear = nn.Sequential(
+            nn.Linear(state_dim + action_dim, 100),
+            nn.ReLU(),
+            nn.BatchNorm1d(100),
+            nn.Linear(100, 40),
+            nn.ReLU(),
+            nn.BatchNorm1d(40),
+            nn.Linear(40, 1),
+        )
 
     def forward(self, x, u):
         x = torch.cat([x, u], 1)
-        for layer in self.linear:
-            x = layer(x)
+        x = self.linear(x)
         return x
 
 class DDPG(object):
@@ -164,15 +157,15 @@ class DDPG(object):
         self.action_dim = action_dim
         self.mode = mode
         if mode == 'rgb_array':
-            self.actor = Actor_image(action_dim, img_stack, max_action).to(device)
-            self.actor_target = Actor_image(action_dim, img_stack, max_action).to(device)
-            self.critic = Critic_image( action_dim, img_stack).to(device)
-            self.critic_target = Critic_image( action_dim, img_stack).to(device)
+            self.actor = ActorImage(action_dim, img_stack, max_action).to(device)
+            self.actor_target = ActorImage(action_dim, img_stack, max_action).to(device)
+            self.critic = CriticImage( action_dim, img_stack).to(device)
+            self.critic_target = CriticImage( action_dim, img_stack).to(device)
         elif mode == 'state':
-            self.actor = Actor_state(state_dim, action_dim, max_action).to(device)
-            self.actor_target = Actor_state(state_dim, action_dim, max_action).to(device)
-            self.critic = Critic_state(state_dim, action_dim).to(device)
-            self.critic_target = Critic_state(state_dim, action_dim).to(device)
+            self.actor = ActorState(state_dim, action_dim, max_action).to(device)
+            self.actor_target = ActorState(state_dim, action_dim, max_action).to(device)
+            self.critic = CriticState(state_dim, action_dim).to(device)
+            self.critic_target = CriticState(state_dim, action_dim).to(device)
         else:
             raise ValueError('Unrecognized mode ' + mode)
 
