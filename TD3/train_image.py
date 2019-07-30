@@ -17,22 +17,17 @@ Train the CNN to see the position of the needle, before we start
 using RL
 '''
 
-model = ImageToPos() 
+def train(args):
+    mode = 'both'
+    seed = 1e5
 
-def train():
-    
-
-Ts, rewards, Best_avg_reward = [], [], -1e5
-
-def run(args):
     env_data_name = os.path.splitext(
         os.path.basename(args.filename))[0]
 
-    base_filename = '{}_{}_{}'.format(
-        args.env_name, args.policy_name, env_data_name)
+    base_filename = '{}_{}'.format(args.env_name, env_data_name)
 
     # Set random seeds
-    random.seed(args.seed)
+    random.seed(seed)
     torch.manual_seed(random.randint(1, 10000))
     if torch.cuda.is_available() and not args.disable_cuda:
         args.device = torch.device('cuda')
@@ -40,11 +35,8 @@ def run(args):
     else:
         args.device = torch.device('cpu')
 
-    ## environment setup
-    log_f = open('log_' + base_filename + '.txt', 'w')
-
     """ setting up environment """
-    env = Environment(filename = args.filename, mode=args.mode,
+    env = Environment(filename = args.filename, mode=mode,
         stack_size = args.stack_size)
 
     # Initialize policy
@@ -52,108 +44,49 @@ def run(args):
     state_dim = len(env.gates) + 9
     from .DDPG_image import ImageToPos
 
-    model = ImageToPos(args.img_stack).to(args.device)
+    out_size = 4
+    model = ImageToPos(args.stack_size, out_size).to(args.device)
+    model.train() # for batchnorm
 
-        policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode)
-    elif args.policy_name == 'ddpg':
-        from .DDPG_image import DDPG
-        policy = DDPG(state_dim, action_dim, args.stack_size, max_action, args.mode)
-    else:
-      raise ValueError(
-        args.policy_name + ' is not recognized as a valid policy')
+    opt = torch.optim.Adam(model.parameters())
 
-    ## load pre-trained policy
-    #try:
-    #    policy.load(result_path)
-    #except:
-    #    pass
+    max_iter = 100000
+    render_freq = 500
 
-    replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
+    losses = []
 
-    state = env.reset()
-    #print('state = ', state) # debug
-    total_timesteps = 0
-    episode_num = 0
-    done = False
-    zero_noise = np.zeros((action_dim,))
+    for iter in xrange(max_iter):
+        images, states = [], []
+        iter_mult = iter * args.batch_size
+        for j in xrange(args.batch_size):
+            i, s = env.reset(random_needle=True)
+            if (iter_mult + j) % render_freq == 0:
+                env.render(save_image=True, save_path='./img/')
+            #print s.shape, i.shape
+            images.append(i)
+            states.append(s[:, 0:4])
+        images = np.array(images, dtype=np.float32)
+        states = np.array(states, dtype=np.float32)
+        #print images.shape, states.shape # debug
+        x = torch.from_numpy(images).to(args.device)
+        #print(states[0]) # debug
+        y = torch.from_numpy(states).to(args.device).squeeze(1)
 
-    policy.actor.eval() # set for batchnorm
+        y2 = model(x) # apply CNN
+        loss = ((y2 - y) * (y2 - y))
+        #print y2.shape, y.shape, loss.shape
+        #sys.exit(1)
+        loss2 = loss[0].clone().detach().cpu().sqrt().numpy()
+        loss = loss.mean()
+        losses.append(loss)
 
-    while total_timesteps < args.max_timesteps:
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
 
-        # Evaluate episode
-        if (total_timesteps % args.eval_freq == 0
-            and total_timesteps != 0):
-            print("Evaluating policy") # debug
-            best_reward = evaluate_policy(
-                env, args, policy, total_timesteps, test_path, result_path)
+        print "Iter {} Loss = {:.5f}, {}".format(iter, loss, loss2)
 
-        """ exploration rate decay """
-
-        # Check if we should add noise
-        percent_greedy = 1. - max(1., total_timesteps / greedy_decay_rate)
-        epsilon_greedy = args.epsilon_greedy * percent_greedy
-        if random.random() < epsilon_greedy:
-            noise_std = ((args.explo_noise - epsilon_final) *
-                math.exp(-1. * total_timesteps / decay_rate))
-            ep_decay.append(noise_std)
-            # log_f.write('epsilon decay:{}\n'.format(noise_std)) # debug
-            noise = np.random.normal(0, noise_std, size=action_dim)
-        else:
-            noise = zero_noise
-
-        # """ using PID controller """
-        # state_pid = state[0:3]
-        # action = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
-        # print("action based on PID: " + str(action))
-
-        """ action selected based on pure policy """
-        action2 = policy.select_action(state)
-
-        # state_pid = state[0:3]
-        # guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
-        action = np.clip(action2 + noise, -max_action, max_action)
-
-        #print "action: ", action, "noise: ", noise, "action2: ", action2 # debug
-
-        # Perform action
-        new_state, reward, done = env.step(action)
-
-        # Store data in replay buffer
-        replay_buffer.add(state, new_state, action, reward, done)
-
-        ## Train over the past episode
-        if done:
-            print ("Training. episode ", episode_num, "R =", env.total_reward) # debug
-
-            ## training
-            str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}'.format(
-              total_timesteps, episode_num, env.t, env.total_reward)
-
-            log_f.write(str + '\n')
-            if episode_num % 20 == 0:
-                print(str)
-                env.render(save_image=True, save_path=save_path)
-
-            policy.actor.train() # Set actor to training mode
-
-            beta = min(1.0, beta_start + total_timesteps *
-                (1.0 - beta_start) / beta_frames)
-            policy.train(replay_buffer, env.t, beta, args)
-
-            policy.actor.eval() # set for batchnorm
-
-            # Reset environment
-            new_state = env.reset()
-            done = False
-            episode_num += 1
-
-            # print "Training done" # debug
-
-        state = new_state
-        total_timesteps += 1
-
-    print("Best Reward: " + best_reward)
+        iter += 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -204,8 +137,4 @@ if __name__ == "__main__":
     parser.add_argument("policy_name", default="TD3", type=str)
 
     args = parser.parse_args()
-    if args.profile:
-        import cProfile
-        cProfile.run('run(args)', sort='cumtime')
-    else:
-        run(args)
+    train(args)

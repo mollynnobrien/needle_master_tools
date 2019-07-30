@@ -136,7 +136,12 @@ def run(args):
 
     # Initialize policy
     action_dim = 1
-    state_dim = len(env.gates) + 9
+    state_dim = 0
+
+    if args.mode == 'state':
+        state = env.reset()
+        state_dim = state.shape[-1]
+
     if args.policy_name == 'td3':
         from .TD3_image import TD3
         policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode)

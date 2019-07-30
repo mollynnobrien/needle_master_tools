@@ -48,7 +48,7 @@ class ImageToPos(BaseImage):
     ''' Class converting the image to a position of the needle.
         We train on this to accelerate RL training off images
     '''
-    def __init__(self, img_stack):
+    def __init__(self, img_stack, out_size=3):
         super(ImageToPos, self).__init__(img_stack)
 
         self.linear = nn.Sequential(
@@ -58,7 +58,7 @@ class ImageToPos(BaseImage):
             nn.Linear(400, 100),
             nn.ReLU(),
             nn.BatchNorm1d(100),
-            nn.Linear(100, 3) # x, y, w
+            nn.Linear(100, out_size) # x, y, w
         )
 
     def forward(self, x):

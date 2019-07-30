@@ -82,7 +82,7 @@ class Environment:
                 self.load(file)
 
         self.needle = Needle(self.width, self.height,
-                self.log_file, random=random_needle)
+                self.log_file, random_pos=random_needle)
 
         # Assume the width and height won't change
         # Save the Surface creation
@@ -90,18 +90,23 @@ class Environment:
             self.is_init = True
             self.screen = pygame.Surface((self.width, self.height))
 
-        if self.mode == 'rgb_array':
-            frame = self.render(save_image=True)
+        if self.mode in ['rgb_array', 'both']:
+            frame = self.render(save_image=False)
             # Create image stack
             gray = rgb2gray(frame)
             self.stack = [gray] * (self.stack_size - 1)
             ob = np.concatenate(self.stack + [frame])
             self.stack.append(gray)
-            return ob
 
-        elif self.mode == 'state':
+        if self.mode in ['state', 'both']:
             state = self._get_state().reshape((1,-1))
+
+        if self.mode == 'rgb_array':
+            return ob
+        elif self.mode == 'state':
             return state
+        elif self.mode == 'both':
+            return ob, state
 
     def render(self, mode='rgb_array', save_image=False, save_path='./out/'):
 
@@ -149,10 +154,9 @@ class Environment:
 
             if not os.path.exists(save_path):
                 os.mkdir(save_path)
-            if self.t > 0:
-                save_file = os.path.join(save_path,
-                        '{:06d}_{:03d}.png'.format(self.episode, self.t))
-                pygame.image.save(surface, save_file)
+            save_file = os.path.join(save_path,
+                    '{:06d}_{:03d}.png'.format(self.episode, self.t))
+            pygame.image.save(surface, save_file)
 
         # Return the figure in a numpy buffer
         if mode == 'rgb_array':
@@ -202,28 +206,29 @@ class Environment:
     def _get_state(self):
         ''' Get state in a way the NN can read it '''
         if self.next_gate is not None:
-            gate_x = self.gates[self.next_gate].x / self.width
-            gate_y = self.gates[self.next_gate].y / self.height
-            gate_w = self.gates[self.next_gate].w / math.pi
+            gate = self.gates[self.next_gate]
+            gate_x, gate_y, gate_w = gate.x, gate.y, gate.w
         elif self.next_gate is None:
-            """ ultimate destination: x = previous gate.x + 100, y = previous gate.y, w = pi  """
-            gate_x = (self.gates[len(self.gates) - 1].x + 100) / self.width
-            gate_y = (self.gates[len(self.gates) - 1].y + 100) / self.height
-            gate_w = 1
+            gate_x, gate_y, gate_w = 0., 0., 0.
 
-        n = len(self.gates)
-        state = np.zeros([9 + n, ])
-        state[0] = self.needle.x / self.width
-        state[1] = self.needle.y / self.height
-        state[2] = self.needle.w / math.pi
-        state[3] = self.needle.dx
-        state[4] = self.needle.dy
-        state[5] = self.needle.dw
-        for ii in range(n):
-            state[6 + ii] = 1.0 if self.gates[ii].status == 'passed' else 0.0
-        state[6 + n] = gate_x
-        state[7 + n] = gate_y
-        state[8 + n] = gate_w
+        state = []
+        state.append(float(self.needle.x) / self.width)
+        state.append(float(self.needle.y) / self.height)
+        # Get back of needle
+        c = self.needle.corners
+        state.append((c[1,0] + c[2,0]) / (2.0 * self.width))
+        state.append((c[1,1] + c[2,1]) / (2.0 * self.height))
+        state.append(float(self.needle.w) / two_pi)
+        state.append(float(self.needle.dx))
+        state.append(float(self.needle.dy))
+        state.append(float(self.needle.dw))
+        for gate in self.gates:
+            state.append(1.0 if gate.status == 'passed' else 0.0)
+        state.append(float(gate_x) / self.width)
+        state.append(float(gate_y) / self.height)
+        state.append(float(gate_w) / two_pi)
+        state = np.array(state, dtype=np.float32)
+        #print "state = ", state # debug
         return state
 
     def step(self, action):
@@ -293,7 +298,7 @@ class Environment:
         if self.record and self.t % self.record_interval_t == 0:
             self.render(mode='rgb_array', save_image=True)
 
-        if self.mode == 'rgb_array':
+        if self.mode in ['rgb_array', 'both']:
             """ if from image to action """
             frame = self.render(mode='rgb_array')
             self.stack.pop(0)
@@ -301,12 +306,17 @@ class Environment:
             # Add memory as grayscale
             self.stack.append(rgb2gray(frame))
             assert len(self.stack) == self.stack_size
-            return ob, reward, done
 
-        if self.mode == 'state':
+        if self.mode in ['state', 'both']:
             """ else from state to action"""
             state = self._get_state().reshape((1,-1))
+
+        if self.mode == 'rgb_array':
+            return ob, reward, done
+        elif self.mode == 'state':
             return state, reward, done
+        elif self.mode == 'both':
+            return (ob, state), reward, done
 
     def _surface_with_needle(self):
         for s in self.surfaces:
@@ -520,10 +530,10 @@ class Needle:
 
     # Assume w=0 points to the negative x-axis
 
-    def __init__(self, env_width, env_height, log_file, random=False):
-        if random:
+    def __init__(self, env_width, env_height, log_file, random_pos=False):
+        if random_pos:
             self.x = random.randint(0, env_width - 1)
-            self.y = random.randit(0, env_height - 1)
+            self.y = random.randint(0, env_height - 1)
             self.w = random.random() * two_pi
         else:
             self.x = 96
