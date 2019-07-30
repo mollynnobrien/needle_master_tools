@@ -25,22 +25,62 @@ def calc_features(img_stack):
 class BaseImage(nn.Module):
     def __init__(self, img_stack):
         super(BaseImage, self).__init__()
-        self.encoder = nn.Sequential(  ## input size:[img_stack, 224, 224]
-            nn.Conv2d(calc_features(img_stack), 16, 5, 2, padding=2), ## [16, 112, 112]
-            nn.ReLU(),
-            nn.BatchNorm2d(16),
-            nn.Conv2d(16, 32, 5 ,2, padding=2),   ## [32, 56, 56]
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Conv2d(32, 64, 5, 2, padding=2),   ## [64, 28, 28]
+        self.encoder = nn.Sequential(
+
+            ## input size:[img_stack, 224, 224]
+
+            #---
+
+            nn.Conv2d(calc_features(img_stack), 64, 3, 2, padding=1), ## [16, 112, 112]
             nn.ReLU(),
             nn.BatchNorm2d(64),
-            nn.Conv2d(64, 128, 5, 2, padding=2),   ## [128, 14, 14]
+
+            nn.Conv2d(64, 16, 3, 1, padding=1), ## [16, 112, 112]
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+
+            #---
+
+            nn.Conv2d(16, 128, 3 ,2, padding=1),   ## [32, 56, 56]
             nn.ReLU(),
             nn.BatchNorm2d(128),
-            nn.Conv2d(128, 256, 5, 2, padding=2),  ## [256, 7, 7]
+
+            nn.Conv2d(128, 32, 3 ,1, padding=1),   ## [32, 56, 56]
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+
+            #---
+
+            nn.Conv2d(32, 256, 3, 2, padding=1),   ## [64, 28, 28]
             nn.ReLU(),
             nn.BatchNorm2d(256),
+
+            nn.Conv2d(256, 64, 3, 1, padding=1),   ## [128, 28, 28]
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+
+            #---
+
+            nn.Conv2d(64, 512, 3, 2, padding=1),   ## [64, 14, 14]
+            nn.ReLU(),
+            nn.BatchNorm2d(512),
+
+            nn.Conv2d(512, 128, 3, 1, padding=1),   ## [128, 14, 14]
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+
+            #---
+
+            nn.Conv2d(128, 1024, 3, 2, padding=1),  ## [512, 7, 7]
+            nn.ReLU(),
+            nn.BatchNorm2d(1024),
+
+            nn.Conv2d(1024, 256, 3, 1, padding=1),  ## [256, 7, 7]
+            nn.ReLU(),
+            nn.BatchNorm2d(256),
+
+            #---
+
             Flatten(),   ## 256*7*7
         )
 

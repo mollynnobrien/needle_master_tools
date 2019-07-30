@@ -48,7 +48,8 @@ def train(args):
     model = ImageToPos(args.stack_size, out_size).to(args.device)
     model.train() # for batchnorm
 
-    opt = torch.optim.Adam(model.parameters())
+    #opt = torch.optim.Adam(model.parameters())
+    opt = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     max_iter = 100000
     render_freq = 500
