@@ -22,18 +22,26 @@ def evaluate_policy(env, args, policy, T, test_path, result_path):
     Ts.append(T)
     T_rewards = []
     policy.actor.eval() # set for batchnorm
+    actions = []
     for _ in range(args.evaluation_episodes):
         reward_sum = 0
         done = False
         state = env.reset()
         while not done:
             action = policy.select_action(state)
+            actions.append(action)
             state, reward, done = env.step(action)
             reward_sum += reward
 
         env.render(save_image=True, save_path=test_path)
         T_rewards.append(reward_sum)
-    avg_reward = float(sum(T_rewards)) / len(T_rewards)
+    avg_reward = np.array(T_rewards, dtype=np.float32).mean()
+    actions = np.array(actions, dtype=np.float32)
+    avg_action = actions.mean()
+    std_action = actions.std()
+    min_action = actions.min()
+    max_action = actions.max()
+    #avg_reward = float(sum(T_rewards)) / len(T_rewards)
     rewards.append(T_rewards)
     _plot_line(Ts, rewards, 'Reward', path = test_path)
 
@@ -43,7 +51,10 @@ def evaluate_policy(env, args, policy, T, test_path, result_path):
         policy.save(result_path)
 
     print ("---------------------------------------")
-    print ("In %d episodes, avg rewards: %f" % (args.evaluation_episodes, avg_reward))
+    print ("In {} episodes, R={:.2f}, A avg={:.2f}, std={:.2f}, "
+        "min={:.2f}, max={:.2f}".format(
+      args.evaluation_episodes, avg_reward, avg_action, std_action,
+      min_action, max_action))
     print ("---------------------------------------")
     return Best_avg_reward
 
