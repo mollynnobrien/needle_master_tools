@@ -18,6 +18,9 @@ class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
+# NOTE: Batchnorm is a problem for these algorithms. We need consistency
+# and determinism, especially for the actor. Batchnorm seems to break that.
+
 # We have greyscale, and then one RGB
 def calc_features(img_stack):
     return img_stack - 1 + 3
@@ -26,7 +29,7 @@ def make_linear(in_size, out_size):
     l = [
             nn.Linear(in_size, out_size),
             nn.ReLU(),
-            nn.BatchNorm1d(out_size)
+            #nn.BatchNorm1d(out_size) # disable for this algorithm
         ]
     return l
 

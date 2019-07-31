@@ -104,7 +104,7 @@ def run(args):
         torch.cuda.manual_seed(random.randint(1, 10000))
         # Disable nondeterministic ops (not sure if critical but better
         # safe than sorry)
-        #torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.enabled = False
     else:
         args.device = torch.device('cpu')
 
@@ -169,17 +169,8 @@ def run(args):
 
     policy.actor.eval() # set for batchnorm
 
+
     while total_timesteps < args.max_timesteps:
-
-        # Evaluate episode
-        if (total_timesteps % args.eval_freq == 0
-            and total_timesteps != 0):
-            print("Evaluating policy") # debug
-            best_reward = evaluate_policy(
-                env, args, policy, total_timesteps, test_path, result_path)
-
-        """ exploration rate decay """
-
         # Check if we should add noise
         percent_greedy = 1. - min(1., float(total_timesteps) / greedy_decay_rate)
         epsilon_greedy = args.epsilon_greedy * percent_greedy
@@ -191,6 +182,17 @@ def run(args):
             noise = np.random.normal(0, noise_std, size=action_dim)
         else:
             noise = zero_noise
+
+
+        # Evaluate episode
+        if (total_timesteps % args.eval_freq == 0
+            and total_timesteps != 0):
+            print("Greedy percentage {}. Evaluating policy".format(
+              epsilon_greedy)) # debug
+            best_reward = evaluate_policy(
+                env, args, policy, total_timesteps, test_path, result_path)
+
+        """ exploration rate decay """
 
         # """ using PID controller """
         # state_pid = state[0:3]
@@ -269,7 +271,7 @@ if __name__ == "__main__":
         help='Whether or not models are saved')
     parser.add_argument("--expl_noise", default=1.0, type=float,
         help='Starting std of Gaussian exploration noise')
-    parser.add_argument("--epsilon_greedy", default=0.15, type=float,
+    parser.add_argument("--epsilon_greedy", default=0.8, type=float,
         help='Starting percentage of choosing random noise')
     parser.add_argument("--batch_size", default=32, type=int,
         help='Batch size for both actor and critic')
