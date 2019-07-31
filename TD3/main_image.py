@@ -33,7 +33,7 @@ def evaluate_policy(env, args, policy, T, test_path, result_path):
 
         env.render(save_image=True, save_path=test_path)
         T_rewards.append(reward_sum)
-    avg_reward = sum(T_rewards) / len(T_rewards)
+    avg_reward = float(sum(T_rewards)) / len(T_rewards)
     rewards.append(T_rewards)
     _plot_line(Ts, rewards, 'Reward', path = test_path)
 
@@ -181,11 +181,11 @@ def run(args):
         """ exploration rate decay """
 
         # Check if we should add noise
-        percent_greedy = 1. - max(1., total_timesteps / greedy_decay_rate)
+        percent_greedy = 1. - min(1., float(total_timesteps) / greedy_decay_rate)
         epsilon_greedy = args.epsilon_greedy * percent_greedy
         if random.random() < epsilon_greedy:
-            noise_std = ((args.explo_noise - epsilon_final) *
-                math.exp(-1. * total_timesteps / decay_rate))
+            noise_std = ((args.expl_noise - epsilon_final) *
+                math.exp(-1. * float(total_timesteps) / decay_rate))
             ep_decay.append(noise_std)
             # log_f.write('epsilon decay:{}\n'.format(noise_std)) # debug
             noise = np.random.normal(0, noise_std, size=action_dim)
@@ -214,22 +214,24 @@ def run(args):
 
         ## Train over the past episode
         if done:
-            print ("Training. episode ", episode_num, "R =", env.total_reward) # debug
+            policy.actor.train() # Set actor to training mode
+
+            beta = min(1.0, beta_start + total_timesteps *
+                (1.0 - beta_start) / beta_frames)
+
+            critic_loss = policy.train(replay_buffer, env.t, beta, args)
+
+            print ("Training. episode ", episode_num, "R =", env.total_reward, "L =", critic_loss) # debug
 
             ## training
-            str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}'.format(
-              total_timesteps, episode_num, env.t, env.total_reward)
+            str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}, Loss:{}'.format(
+              total_timesteps, episode_num, env.t, env.total_reward, critic_loss)
 
             log_f.write(str + '\n')
             if episode_num % 20 == 0:
                 print(str)
                 env.render(save_image=True, save_path=save_path)
 
-            policy.actor.train() # Set actor to training mode
-
-            beta = min(1.0, beta_start + total_timesteps *
-                (1.0 - beta_start) / beta_frames)
-            policy.train(replay_buffer, env.t, beta, args)
 
             policy.actor.eval() # set for batchnorm
 
@@ -265,9 +267,9 @@ if __name__ == "__main__":
         help='Timesteps before learning')
     parser.add_argument("--save_models", action= "store",
         help='Whether or not models are saved')
-    parser.add_argument("--expl_noise", default=0.5, type=float,
+    parser.add_argument("--expl_noise", default=1.0, type=float,
         help='Starting std of Gaussian exploration noise')
-    parser.add_argument("--epsilon_greedy", default=0.08, type=float,
+    parser.add_argument("--epsilon_greedy", default=0.15, type=float,
         help='Starting percentage of choosing random noise')
     parser.add_argument("--batch_size", default=32, type=int,
         help='Batch size for both actor and critic')
