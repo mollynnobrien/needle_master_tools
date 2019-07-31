@@ -251,9 +251,9 @@ class Environment:
 
         status = self._update_and_get_next_gate_status()
         if status == 'passed':
-            reward += 10
+            reward += 100
         elif status == 'failed':
-            reward -= 10
+            reward -= 1
         elif status == 'done':
             done = True
 
@@ -272,10 +272,10 @@ class Environment:
             reward -= 0.00001
 
         # Check for leaving window
-        if (self.needle.x < 0 or self.needle.x > self.width or
-                self.needle.y < 0 or self.needle.y > self.height):
-            reward -= 50
-            done = True
+        if (self.needle.x <= 0 or self.needle.x >= self.width or
+                self.needle.y <= 0 or self.needle.y >= self.height):
+            reward -= 0.5
+            #done = True
 
         if self._deep_tissue_intersect():
             reward -= 100.
@@ -654,6 +654,16 @@ class Needle:
         oldx, oldy = self.x, self.y
         self.x += dx
         self.y -= dy
+
+        # Constrain x and y
+        if self.x < 0:
+            self.x = 0
+        if self.y < 0:
+            self.y = 0
+        if self.x > self.env_width:
+            self.x = self.env_width
+        if self.y > self.env_height:
+            self.y = self.env_height
 
         if self.x != oldx or self.y != oldy:
             self.thread_points.append((self.x, self.env_height - self.y))
