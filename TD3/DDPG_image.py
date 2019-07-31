@@ -22,6 +22,14 @@ class Flatten(nn.Module):
 def calc_features(img_stack):
     return img_stack - 1 + 3
 
+def make_linear(in_size, out_size):
+    l = [
+            nn.Linear(in_size, out_size),
+            nn.ReLU(),
+            nn.BatchNorm1d(out_size)
+        ]
+    return l
+
 class BaseImage(nn.Module):
     def __init__(self, img_stack):
         super(BaseImage, self).__init__()
@@ -31,17 +39,17 @@ class BaseImage(nn.Module):
 
             #---
 
-            nn.Conv2d(calc_features(img_stack), 64, 3, 2, padding=1), ## [16, 112, 112]
+            nn.Conv2d(calc_features(img_stack), 128, 3, 2, padding=1), ## [16, 112, 112]
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+
+            nn.Conv2d(128, 64, 3, 1, padding=1), ## [16, 112, 112]
             nn.ReLU(),
             nn.BatchNorm2d(64),
 
-            nn.Conv2d(64, 16, 3, 1, padding=1), ## [16, 112, 112]
-            nn.ReLU(),
-            nn.BatchNorm2d(16),
-
             #---
 
-            nn.Conv2d(16, 128, 3 ,2, padding=1),   ## [32, 56, 56]
+            nn.Conv2d(64, 128, 3 ,2, padding=1),   ## [32, 56, 56]
             nn.ReLU(),
             nn.BatchNorm2d(128),
 
@@ -95,10 +103,12 @@ class ImageToPos(BaseImage):
             nn.Linear(latent_dim, 400),
             nn.ReLU(),
             nn.BatchNorm1d(400),
-            nn.Linear(400, 100),
-            nn.ReLU(),
-            nn.BatchNorm1d(100),
-            nn.Linear(100, out_size) # x, y, w
+
+            #nn.Linear(400, 100),
+            #nn.ReLU(),
+            #nn.BatchNorm1d(100),
+
+            nn.Linear(400, out_size) # x, y, w
         )
 
     def forward(self, x):
@@ -133,22 +143,20 @@ class ActorState(nn.Module):
     def __init__(self, state_dim, action_dim, max_action):
         super(ActorState, self).__init__()
 
-        self.linear = nn.Sequential(
-            nn.Linear(state_dim, 100),
-            nn.ReLU(),
-            nn.BatchNorm1d(100),
-            nn.Linear(100, 40),
-            nn.ReLU(),
-            nn.BatchNorm1d(40),
-        )
+        l = []
+        l.extend(make_linear(state_dim, 100))
+        l.extend(make_linear(100, 50))
+        l.extend(make_linear(50, 50))
+        l.extend(make_linear(50, 50))
+        l.append(nn.Linear(50, action_dim))
 
-        self.out_angular = nn.Linear(40, int(action_dim))
+        self.linear = nn.Sequential(*l)
         self.max_action = max_action
 
     def forward(self, x):
         x = self.linear(x)
-        x = self.out_angular(x)
-        x = torch.clamp(x, min=-1., max=1.) * self.max_action
+        #x = torch.clamp(x, min=-1., max=1.) * self.max_action
+        x = torch.tanh(x) * self.max_action
         return x
 
 class CriticImage(BaseImage):
@@ -175,15 +183,14 @@ class CriticState(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(CriticState, self).__init__()
 
-        self.linear = nn.Sequential(
-            nn.Linear(state_dim + action_dim, 100),
-            nn.ReLU(),
-            nn.BatchNorm1d(100),
-            nn.Linear(100, 40),
-            nn.ReLU(),
-            nn.BatchNorm1d(40),
-            nn.Linear(40, 1),
-        )
+        l = []
+        l.extend(make_linear(state_dim + action_dim, 100))
+        l.extend(make_linear(100, 50))
+        l.extend(make_linear(50, 50))
+        l.extend(make_linear(50, 10))
+        l.extend(make_linear(10, 1))
+
+        self.linear = nn.Sequential(*l)
 
     def forward(self, x, u):
         x = torch.cat([x, u], 1)
@@ -286,6 +293,8 @@ class DDPG(object):
 
             for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
                 target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+
+            return critic_loss.item()
 
     def save(self, path):
         torch.save(self.actor.state_dict(), os.path.join(path, 'actor.pth'))
