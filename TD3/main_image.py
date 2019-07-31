@@ -124,10 +124,10 @@ def run(args):
     max_action = 0.25 * math.pi
 
     """ parameters for epsilon declay """
-    greedy_decay_rate = 100000
+    greedy_decay_rate = 10000000
+    std_decay_rate = 10000000
     epsilon_start = args.expl_noise
     epsilon_final = 0.001
-    decay_rate = 25000
     ep_decay = []
 
     """ beta Prioritized Experience Replay"""
@@ -176,7 +176,7 @@ def run(args):
         epsilon_greedy = args.epsilon_greedy * percent_greedy
         if random.random() < epsilon_greedy:
             noise_std = ((args.expl_noise - epsilon_final) *
-                math.exp(-1. * float(total_timesteps) / decay_rate))
+                math.exp(-1. * float(total_timesteps) / std_decay_rate))
             ep_decay.append(noise_std)
             # log_f.write('epsilon decay:{}\n'.format(noise_std)) # debug
             noise = np.random.normal(0, noise_std, size=action_dim)
@@ -187,8 +187,8 @@ def run(args):
         # Evaluate episode
         if (total_timesteps % args.eval_freq == 0
             and total_timesteps != 0):
-            print("Greedy percentage {}. Evaluating policy".format(
-              epsilon_greedy)) # debug
+            print("Greedy={}, std={}. Evaluating policy".format(
+              epsilon_greedy, noise_std)) # debug
             best_reward = evaluate_policy(
                 env, args, policy, total_timesteps, test_path, result_path)
 
@@ -247,7 +247,7 @@ def run(args):
         state = new_state
         total_timesteps += 1
 
-    print("Best Reward: " + best_reward)
+    print("Best Reward: ", best_reward)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
