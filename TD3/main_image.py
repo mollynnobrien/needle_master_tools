@@ -12,7 +12,7 @@ cur_dir= os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
 from needlemaster.environment import Environment
 
-from .utils import NaivePrioritizedBuffer
+from .utils import NaivePrioritizedBuffer, ReplayBuffer
 
 Ts, rewards, Best_avg_reward = [], [], -1e5
 
@@ -21,12 +21,12 @@ def evaluate_policy(env, args, policy, T, test_path, result_path):
     global Ts, rewards, Best_avg_reward
     Ts.append(T)
     T_rewards = []
-    policy.actor.eval() # set for batchnorm
+    #policy.actor.eval() # set for batchnorm
     actions = []
     for _ in range(args.evaluation_episodes):
         reward_sum = 0
         done = False
-        state = env.reset()
+        state = env.reset(random_needle=args.random_needle)
         while not done:
             action = policy.select_action(state)
             actions.append(action)
@@ -50,7 +50,6 @@ def evaluate_policy(env, args, policy, T, test_path, result_path):
         Best_avg_reward = avg_reward
         policy.save(result_path)
 
-    print ("---------------------------------------")
     print ("In {} episodes, R={:.2f}, A avg={:.2f}, std={:.2f}, "
         "min={:.2f}, max={:.2f}".format(
       args.evaluation_episodes, avg_reward, avg_action, std_action,
@@ -137,7 +136,6 @@ def run(args):
     """ parameters for epsilon declay """
     greedy_decay_rate = 10000000
     std_decay_rate = 10000000
-    epsilon_start = args.expl_noise
     epsilon_final = 0.001
     ep_decay = []
 
@@ -158,10 +156,11 @@ def run(args):
         policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
-        policy = DDPG(state_dim, action_dim, args.stack_size, max_action, args.mode)
+        policy = DDPG(state_dim, action_dim, args.stack_size,
+            max_action, args.mode, bn=args.batchnorm)
     else:
-      raise ValueError(
-        args.policy_name + ' is not recognized as a valid policy')
+        raise ValueError(
+            args.policy_name + ' is not recognized as a valid policy')
 
     ## load pre-trained policy
     #try:
@@ -169,17 +168,20 @@ def run(args):
     #except:
     #    pass
 
-    replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
+    if args.buffer == 'simple':
+        replay_buffer = ReplayBuffer(int(args.max_size))
+    elif args.buffer == 'priority':
+        replay_buffer = NaivePrioritizedBuffer(int(args.max_size))
+    else:
+        raise ValueError(args.buffer + ' is not a buffer name')
 
     state = env.reset()
-    #print('state = ', state) # debug
     total_timesteps = 0
     episode_num = 0
     done = False
     zero_noise = np.zeros((action_dim,))
 
     policy.actor.eval() # set for batchnorm
-
 
     while total_timesteps < args.max_timesteps:
         # Check if we should add noise
@@ -198,9 +200,10 @@ def run(args):
         # Evaluate episode
         if (total_timesteps % args.eval_freq == 0
             and total_timesteps != 0):
-            print("Greedy={}, std={}. Evaluating policy".format(
-              epsilon_greedy, noise_std)) # debug
-            best_reward = evaluate_policy(
+              print ("---------------------------------------")
+              print("Greedy={}, std={}. Evaluating policy".format(
+                epsilon_greedy, noise_std)) # debug
+              best_reward = evaluate_policy(
                 env, args, policy, total_timesteps, test_path, result_path)
 
         """ exploration rate decay """
@@ -227,14 +230,26 @@ def run(args):
 
         ## Train over the past episode
         if done:
+
+            '''
+            #debug
+            if episode_num > 200:
+                import pdb
+                pdb.set_trace()
+            '''
+
             policy.actor.train() # Set actor to training mode
 
             beta = min(1.0, beta_start + total_timesteps *
                 (1.0 - beta_start) / beta_frames)
 
-            critic_loss = policy.train(replay_buffer, env.t, beta, args)
+            critic_loss, actor_loss = policy.train(
+                replay_buffer, total_timesteps, beta, args)
 
-            print ("Training. episode ", episode_num, "R =", env.total_reward, "L =", critic_loss) # debug
+            print ("Training E:{:04d} S:{:03d} R: {:.3f} "
+                "CL: {:.3f} AL: {:.3f}".format(
+                  episode_num, env.t, env.total_reward,
+                  critic_loss, actor_loss)) # debug
 
             ## training
             str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}, Loss:{}'.format(
@@ -242,14 +257,12 @@ def run(args):
 
             log_f.write(str + '\n')
             if episode_num % 20 == 0:
-                print(str)
                 env.render(save_image=True, save_path=save_path)
-
 
             policy.actor.eval() # set for batchnorm
 
             # Reset environment
-            new_state = env.reset()
+            new_state = env.reset(random_needle=args.random_needle)
             done = False
             episode_num += 1
 
@@ -280,11 +293,11 @@ if __name__ == "__main__":
         help='Timesteps before learning')
     parser.add_argument("--save_models", action= "store",
         help='Whether or not models are saved')
-    parser.add_argument("--expl_noise", default=1.0, type=float,
+    parser.add_argument("--expl_noise", default=1., type=float,
         help='Starting std of Gaussian exploration noise')
-    parser.add_argument("--epsilon_greedy", default=0.8, type=float,
+    parser.add_argument("--epsilon_greedy", default=0.5, type=float,
         help='Starting percentage of choosing random noise')
-    parser.add_argument("--batch_size", default=32, type=int,
+    parser.add_argument("--batch_size", default=1024, type=int,
         help='Batch size for both actor and critic')
     parser.add_argument("--discount", default=0.99, type=float,
         help='Discount factor')
@@ -296,8 +309,8 @@ if __name__ == "__main__":
         help='Range to clip target policy noise')
     parser.add_argument("--policy_freq", default=2, type=int,
         help='Frequency of delayed policy updates')
-    parser.add_argument("--max_size", default=5e4, type=int,
-        help='Frequency of delayed policy updates')
+    parser.add_argument("--max_size", default=1e6, type=int,
+        help='Size of replay buffer (bigger is better)')
     parser.add_argument("--stack_size", default=2, type=int,
         help='How much history to use')
     parser.add_argument("--evaluation_episodes", default=6, type=int)
@@ -305,6 +318,12 @@ if __name__ == "__main__":
         help="Profile the program for performance")
     parser.add_argument("--mode", default = 'state',
         help="Choose image or state, options are rgb_array and state")
+    parser.add_argument("--buffer", default = 'simple',
+        help="Choose type of buffer, options are simple and priority")
+    parser.add_argument("--random_needle", default = False, action='store_true',
+        help="Choose whether the needle should be random at each iteration")
+    parser.add_argument("--batchnorm", default = False,
+        action='store_true', help="Choose whether to use batchnorm")
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
 

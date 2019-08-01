@@ -269,7 +269,7 @@ class Environment:
         # Time penalty
         # Makes circles not rewarding
         if not done:
-            reward -= 0.00001
+            reward -= 0.001
 
         # Check for leaving window
         if (self.needle.x <= 0 or self.needle.x >= self.width or
