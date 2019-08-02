@@ -269,12 +269,13 @@ class Environment:
         # Time penalty
         # Makes circles not rewarding
         if not done:
-            reward -= 0.001
+            reward -= 0.01
 
         # Check for leaving window
         if (self.needle.x <= 0 or self.needle.x >= self.width or
                 self.needle.y <= 0 or self.needle.y >= self.height):
-            reward -= 0.5
+            pass
+            #reward -= 0.5
             #done = True
 
         if self._deep_tissue_intersect():
