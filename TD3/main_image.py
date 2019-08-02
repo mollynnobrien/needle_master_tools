@@ -12,7 +12,7 @@ cur_dir= os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
 from needlemaster.environment import Environment
 
-from .utils import NaivePrioritizedBuffer, ReplayBuffer
+from .utils import NaivePrioritizedBuffer, ReplayBuffer, OUNoise
 
 Ts, rewards, Best_avg_reward = [], [], -1e5
 
@@ -180,29 +180,39 @@ def run(args):
     episode_num = 0
     done = False
     zero_noise = np.zeros((action_dim,))
+    ou_noise = OUNoise(action_dim)
 
     policy.actor.eval() # set for batchnorm
 
     while total_timesteps < args.max_timesteps:
+
         # Check if we should add noise
-        percent_greedy = 1. - min(1., float(total_timesteps) / greedy_decay_rate)
-        epsilon_greedy = args.epsilon_greedy * percent_greedy
-        if random.random() < epsilon_greedy:
-            noise_std = ((args.expl_noise - epsilon_final) *
-                math.exp(-1. * float(total_timesteps) / std_decay_rate))
-            ep_decay.append(noise_std)
-            # log_f.write('epsilon decay:{}\n'.format(noise_std)) # debug
-            noise = np.random.normal(0, noise_std, size=action_dim)
+        if not args.no_ou_noise:
+            noise = ou_noise.sample()
         else:
-            noise = zero_noise
+            # Epsilon-greedy
+            percent_greedy = (1. - min(1., float(total_timesteps) /
+                greedy_decay_rate))
+            epsilon_greedy = args.epsilon_greedy * percent_greedy
+            if random.random() < epsilon_greedy:
+                noise_std = ((args.expl_noise - epsilon_final) *
+                    math.exp(-1. * float(total_timesteps) / std_decay_rate))
+                ep_decay.append(noise_std)
+                # log_f.write('epsilon decay:{}\n'.format(noise_std)) # debug
+                noise = np.random.normal(0, noise_std, size=action_dim)
+            else:
+                noise = zero_noise
 
 
         # Evaluate episode
         if (total_timesteps % args.eval_freq == 0
             and total_timesteps != 0):
               print ("---------------------------------------")
-              print("Greedy={}, std={}. Evaluating policy".format(
-                epsilon_greedy, noise_std)) # debug
+              if not args.no_ou_noise:
+                  print("Evaluating policy")
+              else:
+                  print("Greedy={}, std={}. Evaluating policy".format(
+                    epsilon_greedy, noise_std)) # debug
               best_reward = evaluate_policy(
                 env, args, policy, total_timesteps, test_path, result_path)
 
@@ -263,6 +273,7 @@ def run(args):
 
             # Reset environment
             new_state = env.reset(random_needle=args.random_needle)
+            ou_noise.reset() # reset to mean
             done = False
             episode_num += 1
 
@@ -293,10 +304,14 @@ if __name__ == "__main__":
         help='Timesteps before learning')
     parser.add_argument("--save_models", action= "store",
         help='Whether or not models are saved')
+    #--- Exploration Noise
+    parser.add_argument("--no-ou-noise", default=True, action='store_false',
+        help='Use OU Noise process for noise instead of epsilon greedy')
     parser.add_argument("--expl_noise", default=1., type=float,
         help='Starting std of Gaussian exploration noise')
     parser.add_argument("--epsilon_greedy", default=0.5, type=float,
         help='Starting percentage of choosing random noise')
+    #---
     parser.add_argument("--batch_size", default=1024, type=int,
         help='Batch size for both actor and critic')
     parser.add_argument("--discount", default=0.99, type=float,

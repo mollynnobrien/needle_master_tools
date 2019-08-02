@@ -6,7 +6,7 @@ import torch.nn as nn
 # https://github.com/openai/baselines/blob/master/baselines/deepq/replay_buffer.py
 
 # Expects tuples of (state, next_state, action, reward, done)
-class ReplayBuffer(object):
+class ReplayBuffer:
     def __init__(self, max_size=1e6):
         self.storage = []
         self.max_size = max_size
@@ -43,7 +43,7 @@ class ReplayBuffer(object):
     def update_priorities(self, x, y):
         pass
 
-class NaivePrioritizedBuffer(object):
+class NaivePrioritizedBuffer:
     def __init__(self, capacity, prob_alpha=0.6):
         self.prob_alpha = prob_alpha
         self.capacity = capacity
@@ -109,4 +109,26 @@ class NaivePrioritizedBuffer(object):
 
     def __len__(self):
         return len(self.buffer)
+
+class OUNoise:
+    '''Ornstein-Uhlenbeck process
+       @mu: mean
+    '''
+    def __init__(self, size, mu=0., theta=0.15, sigma=0.2):
+        self.size = size
+        self.mu = mu * np.ones(size)
+        self.theta = theta
+        self.sigma = sigma
+        self.reset()
+
+    def reset(self):
+        '''Reset the internal state (= noise) to mean (mu)'''
+        self.state = self.mu[:]
+
+    def sample(self):
+        '''Update internal state and return as noise sample'''
+        x = self.state
+        dx = self.theta * (self.mu - x) + self.sigma * np.random.randn(self.size)
+        self.state = x + dx
+        return self.state
 
