@@ -112,7 +112,9 @@ class NaivePrioritizedBuffer:
 
 class OUNoise:
     '''Ornstein-Uhlenbeck process
-       @mu: mean
+       @param mu: mean
+       @param theta: how much to reuse current state
+       @param sigma: variance to add at each step
     '''
     def __init__(self, size, mu=0., theta=0.15, sigma=0.2):
         self.size = size

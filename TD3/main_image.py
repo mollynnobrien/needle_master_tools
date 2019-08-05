@@ -187,7 +187,7 @@ def run(args):
     while total_timesteps < args.max_timesteps:
 
         # Check if we should add noise
-        if not args.no_ou_noise:
+        if args.ou_noise:
             noise = ou_noise.sample()
         else:
             # Epsilon-greedy
@@ -208,7 +208,7 @@ def run(args):
         if (total_timesteps % args.eval_freq == 0
             and total_timesteps != 0):
               print ("---------------------------------------")
-              if not args.no_ou_noise:
+              if args.ou_noise:
                   print("Evaluating policy")
               else:
                   print("Greedy={}, std={}. Evaluating policy".format(
@@ -305,14 +305,14 @@ if __name__ == "__main__":
     parser.add_argument("--save_models", action= "store",
         help='Whether or not models are saved')
     #--- Exploration Noise
-    parser.add_argument("--no-ou-noise", default=True, action='store_false',
+    parser.add_argument("--no-ou-noise", default=False, action='store_true',
         help='Use OU Noise process for noise instead of epsilon greedy')
     parser.add_argument("--expl_noise", default=1., type=float,
         help='Starting std of Gaussian exploration noise')
     parser.add_argument("--epsilon_greedy", default=0.5, type=float,
         help='Starting percentage of choosing random noise')
     #---
-    parser.add_argument("--batch_size", default=1024, type=int,
+    parser.add_argument("--batch-size", default=1024, type=int,
         help='Batch size for both actor and critic')
     parser.add_argument("--discount", default=0.99, type=float,
         help='Discount factor')
@@ -343,6 +343,7 @@ if __name__ == "__main__":
     parser.add_argument("policy_name", default="TD3", type=str)
 
     args = parser.parse_args()
+    args.ou_noise = not args.no_ou_noise
     if args.profile:
         import cProfile
         cProfile.run('run(args)', sort='cumtime')
