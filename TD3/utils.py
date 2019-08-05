@@ -1,6 +1,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import seaborn as sns; sns.set()
+import matplotlib.pyplot as plt
+#import pandas as pd
 
 # Code based on:
 # https://github.com/openai/baselines/blob/master/baselines/deepq/replay_buffer.py
@@ -116,7 +119,7 @@ class OUNoise:
        @param theta: how much to reuse current state
        @param sigma: variance to add at each step
     '''
-    def __init__(self, size, mu=0., theta=0.15, sigma=0.2):
+    def __init__(self, size, mu=0., theta=0.15, sigma=1.0):
         self.size = size
         self.mu = mu * np.ones(size)
         self.theta = theta
@@ -133,4 +136,13 @@ class OUNoise:
         dx = self.theta * (self.mu - x) + self.sigma * np.random.randn(self.size)
         self.state = x + dx
         return self.state
+
+# Plots min, max and mean + standard deviation bars of a population over time
+def plot_line(xs, ys, title, path=''):
+    #d = {'Time': xs, 'Reward': ys}
+    #df = pd.DataFrame(data=d)
+    #plot = sns.lineplot(data=df)
+    plot = sns.lineplot(x=xs, y=ys)
+    fig = plot.get_figure()
+    return fig
 

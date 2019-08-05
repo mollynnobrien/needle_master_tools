@@ -4,26 +4,24 @@ import random, math
 import os, sys, argparse
 from os.path import abspath
 from os.path import join as pjoin
-from plotly.graph_objs import Scatter
-from plotly.graph_objs.scatter import Line
-import plotly
+from torch.utils.tensorboard import SummaryWriter
 
 cur_dir= os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
 from needlemaster.environment import Environment
 
-from .utils import NaivePrioritizedBuffer, ReplayBuffer, OUNoise
+from .utils import *
 
-Ts, rewards, Best_avg_reward = [], [], -1e5
-
-# Runs policy for X episodes and returns average reward
-def evaluate_policy(env, args, policy, T, test_path, result_path):
-    global Ts, rewards, Best_avg_reward
-    Ts.append(T)
-    T_rewards = []
+def evaluate_policy(tb_writer, total_times, total_rewards,
+        env, args, policy, time, test_path):
+    ''' Runs deterministic policy for X episodes and
+        @param tb_writer: tensorboard writer
+        @returns average_reward
+    '''
     #policy.actor.eval() # set for batchnorm
+    rewards = []
     actions = []
-    for _ in range(args.evaluation_episodes):
+    for _ in xrange(args.evaluation_episodes):
         reward_sum = 0
         done = False
         state = env.reset(random_needle=args.random_needle)
@@ -33,63 +31,37 @@ def evaluate_policy(env, args, policy, T, test_path, result_path):
             state, reward, done = env.step(action)
             reward_sum += reward
 
-        env.render(save_image=True, save_path=test_path)
-        T_rewards.append(reward_sum)
-    avg_reward = np.array(T_rewards, dtype=np.float32).mean()
+        img = env.render(save_image=True, save_path=test_path)
+        rewards.append(reward_sum)
+    avg_reward = np.array(rewards, dtype=np.float32).mean()
     actions = np.array(actions, dtype=np.float32)
     avg_action = actions.mean()
     std_action = actions.std()
     min_action = actions.min()
     max_action = actions.max()
-    #avg_reward = float(sum(T_rewards)) / len(T_rewards)
-    rewards.append(T_rewards)
-    _plot_line(Ts, rewards, 'Reward', path = test_path)
+    total_times.append(time)
+    total_rewards.append(avg_reward)
+    fig = plot_line(np.array(total_times), np.array(total_rewards), 'Reward',
+        path = test_path)
+    tb_writer.add_figure('rewards', fig)
+    tb_writer.add_image('run', img.transpose(0, 2, 1))
 
-    ## same model parameters if improved
-    if avg_reward > Best_avg_reward:
-        Best_avg_reward = avg_reward
-        policy.save(result_path)
-
-    print ("In {} episodes, R={:.2f}, A avg={:.2f}, std={:.2f}, "
+    print ("In {} episodes, R={:.4f}, A avg={:.2f}, std={:.2f}, "
         "min={:.2f}, max={:.2f}".format(
       args.evaluation_episodes, avg_reward, avg_action, std_action,
       min_action, max_action))
     print ("---------------------------------------")
-    return Best_avg_reward
-
-# Plots min, max and mean + standard deviation bars of a population over time
-def _plot_line(xs, ys_population, title, path=''):
-  max_colour, mean_colour, std_colour, transparent = (
-      'rgb(0, 132, 180)', 'rgb(0, 172, 237)', 'rgba(29, 202, 255, 0.2)',
-      'rgba(0, 0, 0, 0)')
-
-  ys = torch.tensor(ys_population, dtype=torch.float32)
-  ys_min, ys_max, ys_mean, ys_std = ys.min(1)[0].squeeze(), ys.max(1)[0].squeeze(), ys.mean(1).squeeze(), ys.std(1).squeeze()
-  ys_upper, ys_lower = ys_mean + ys_std, ys_mean - ys_std
-
-  trace_max = Scatter(x=xs, y=ys_max.numpy(),
-      line=Line(color=max_colour, dash='dash'), name='Max')
-  trace_upper = Scatter(x=xs, y=ys_upper.numpy(),
-      line=Line(color=transparent), name='+1 Std. Dev.', showlegend=False)
-  trace_mean = Scatter(x=xs, y=ys_mean.numpy(), fill='tonexty',
-      fillcolor=std_colour, line=Line(color=mean_colour), name='Mean')
-  trace_lower = Scatter(x=xs, y=ys_lower.numpy(), fill='tonexty',
-      fillcolor=std_colour, line=Line(color=transparent),
-      name='-1 Std. Dev.', showlegend=False)
-  trace_min = Scatter(x=xs, y=ys_min.numpy(),
-      line=Line(color=max_colour, dash='dash'), name='Min')
-
-  plotly.offline.plot({
-    'data': [trace_upper, trace_mean, trace_lower, trace_min, trace_max],
-    'layout': dict(title=title, xaxis={'title': 'Step'}, yaxis={'title': title})
-  }, filename=os.path.join(path, title + '.html'), auto_open=False)
-
+    return avg_reward
 
 def run(args):
     args.policy_name = args.policy_name.lower()
 
     env_data_name = os.path.splitext(
         os.path.basename(args.filename))[0]
+
+    times, rewards, best_avg_reward = [], [], -1e5
+
+    tb_writer = SummaryWriter()
 
     def make_dirs(args):
         path = pjoin(env_data_name, args.policy_name, args.mode)
@@ -214,7 +186,14 @@ def run(args):
                   print("Greedy={}, std={}. Evaluating policy".format(
                     epsilon_greedy, noise_std)) # debug
               best_reward = evaluate_policy(
-                env, args, policy, total_timesteps, test_path, result_path)
+                  tb_writer, times, rewards, env, args,
+                policy, total_timesteps, test_path)
+
+              ## save model parameters if improved
+              if best_reward > best_avg_reward:
+                  best_avg_reward = best_reward
+                  policy.save(result_path)
+
 
         """ exploration rate decay """
 
@@ -312,14 +291,16 @@ if __name__ == "__main__":
     parser.add_argument("--epsilon_greedy", default=0.5, type=float,
         help='Starting percentage of choosing random noise')
     #---
+    #--- Batch size is VERY important ---
     parser.add_argument("--batch-size", default=1024, type=int,
         help='Batch size for both actor and critic')
+    #---
     parser.add_argument("--discount", default=0.99, type=float,
         help='Discount factor')
     parser.add_argument("--tau", default=0.005, type=float,
         help='Target network update rate')
     parser.add_argument("--policy_noise", default=0.2, type=float,
-        help='Noise added to target policy during critic update')
+        help='TD3 Smoothing noise added to target policy during critic update')
     parser.add_argument("--noise_clip", default=0.5, type=float,
         help='Range to clip target policy noise')
     parser.add_argument("--policy_freq", default=2, type=int,
@@ -328,7 +309,7 @@ if __name__ == "__main__":
         help='Size of replay buffer (bigger is better)')
     parser.add_argument("--stack_size", default=2, type=int,
         help='How much history to use')
-    parser.add_argument("--evaluation_episodes", default=6, type=int)
+    parser.add_argument("--evaluation_episodes", default=1, type=int)
     parser.add_argument("--profile", default=False, action="store_true",
         help="Profile the program for performance")
     parser.add_argument("--mode", default = 'state',
