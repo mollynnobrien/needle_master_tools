@@ -125,7 +125,8 @@ def run(args):
 
     if args.policy_name == 'td3':
         from .TD3_image import TD3
-        policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode, lr=args.lr)
+        policy = TD3(state_dim, action_dim, args.stack_size,
+            max_action, args.mode, lr=args.lr, actor_lr=args.actor_lr)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
         policy = DDPG(state_dim, action_dim, args.stack_size,
@@ -288,7 +289,7 @@ if __name__ == "__main__":
         help='Use OU Noise process for noise instead of epsilon greedy')
     parser.add_argument("--expl_noise", default=1., type=float,
         help='Starting std of Gaussian exploration noise')
-    parser.add_argument("--epsilon_greedy", default=0.5, type=float,
+    parser.add_argument("--epsilon_greedy", default=0.3, type=float,
         help='Starting percentage of choosing random noise')
     #---
     #--- Batch size is VERY important ---
@@ -296,34 +297,43 @@ if __name__ == "__main__":
         help='Batch size for both actor and critic')
     #---
     parser.add_argument("--discount", default=0.99, type=float,
-        help='Discount factor')
+        help='Discount factor (0.99 is good)')
+
     parser.add_argument("--tau", default=0.005, type=float,
         help='Target critic network update rate')
     parser.add_argument("--actor-tau", default=0.02, type=float,
         help='Target actor network update rate')
+
     parser.add_argument("--policy_noise", default=0.2, type=float,
         help='TD3 Smoothing noise added to target policy during critic update')
     parser.add_argument("--noise_clip", default=0.5, type=float,
-        help='Range to clip target policy noise')
-    parser.add_argument("--policy_freq", default=2, type=int,
-        help='Frequency of delayed policy updates')
+        help='TD3 Range to clip target policy noise')
+
     parser.add_argument("--max_size", default=1e6, type=int,
         help='Size of replay buffer (bigger is better)')
     parser.add_argument("--stack_size", default=2, type=int,
         help='How much history to use')
-    parser.add_argument("--evaluation_episodes", default=1, type=int)
+    parser.add_argument("--evaluation_episodes", default=1, type=int,
+        help='How many times to evaluate actor (1 is enough)')
     parser.add_argument("--profile", default=False, action="store_true",
         help="Profile the program for performance")
     parser.add_argument("--mode", default = 'state',
         help="Choose image or state, options are rgb_array and state")
-    parser.add_argument("--buffer", default = 'simple',
+    parser.add_argument("--buffer", default = 'priority',
         help="Choose type of buffer, options are simple and priority")
     parser.add_argument("--random_needle", default = False, action='store_true',
         help="Choose whether the needle should be random at each iteration")
     parser.add_argument("--batchnorm", default = False,
         action='store_true', help="Choose whether to use batchnorm")
-    parser.add_argument("--lr", default=1e-3, type=float,
+
+    parser.add_argument("--policy_freq", default=3, type=int,
+        help='Frequency of TD3 delayed actor policy updates')
+
+    parser.add_argument("--lr", default=1e-4, type=float,
         help="Learning rate for optimizer")
+    parser.add_argument("--actor-lr", default=1e-3, type=float,
+        help="Learning rate for actor optimizer")
+
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
 

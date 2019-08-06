@@ -120,7 +120,7 @@ class OUNoise:
        @param theta: how much to reuse current state
        @param sigma: variance to add at each step
     '''
-    def __init__(self, size, mu=0., theta=0.15, sigma=1.0):
+    def __init__(self, size, mu=0., theta=0.15, sigma=0.5):
         self.size = size
         self.mu = mu * np.ones(size)
         self.theta = theta

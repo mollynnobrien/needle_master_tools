@@ -14,7 +14,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Paper: https://arxiv.org/abs/1802.09477
 
 class TD3:
-    def __init__(self, state_dim, action_dim, img_stack, max_action, mode, lr):
+    def __init__(self, state_dim, action_dim, img_stack,
+            max_action, mode, lr, actor_lr):
 
         self.action_dim = action_dim
         self.max_action = max_action
@@ -41,12 +42,13 @@ class TD3:
 
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
-                lr=lr)
+                lr=actor_lr)
 
         self.critic_optimizers = []
         for critic, critic_target in zip(self.critics, self.critic_targets):
             critic_target.load_state_dict(critic.state_dict())
-            self.critic_optimizers.append(torch.optim.Adam(critic.parameters(), lr=lr))
+            self.critic_optimizers.append(torch.optim.Adam(
+                critic.parameters(), lr=lr))
 
     def select_action(self, state):
         # Copy as uint8

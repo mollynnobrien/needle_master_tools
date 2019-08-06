@@ -162,7 +162,7 @@ class ActorState(nn.Module):
         ll.extend([nn.Linear(100, action_dim)])
 
         # init
-        #init_layers(ll)
+        init_layers(ll)
 
         self.linear = nn.Sequential(*ll)
         self.max_action = max_action
@@ -184,7 +184,7 @@ class CriticState(nn.Module):
         ll.extend(make_linear(300, 100, bn=bn))
         ll.extend([nn.Linear(100, 1)])
 
-        #init_layers(ll)
+        init_layers(ll)
 
         self.linear = nn.Sequential(*ll)
 

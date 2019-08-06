@@ -275,7 +275,7 @@ class Environment:
         if (self.needle.x <= 0 or self.needle.x >= self.width or
                 self.needle.y <= 0 or self.needle.y >= self.height):
             pass
-            #reward -= 0.5
+            reward -= 0.5
             #done = True
 
         if self._deep_tissue_intersect():
