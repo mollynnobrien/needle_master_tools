@@ -125,7 +125,7 @@ def run(args):
 
     if args.policy_name == 'td3':
         from .TD3_image import TD3
-        policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode)
+        policy = TD3(state_dim, action_dim, args.stack_size, max_action, args.mode, lr=args.lr)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
         policy = DDPG(state_dim, action_dim, args.stack_size,
@@ -298,7 +298,9 @@ if __name__ == "__main__":
     parser.add_argument("--discount", default=0.99, type=float,
         help='Discount factor')
     parser.add_argument("--tau", default=0.005, type=float,
-        help='Target network update rate')
+        help='Target critic network update rate')
+    parser.add_argument("--actor-tau", default=0.02, type=float,
+        help='Target actor network update rate')
     parser.add_argument("--policy_noise", default=0.2, type=float,
         help='TD3 Smoothing noise added to target policy during critic update')
     parser.add_argument("--noise_clip", default=0.5, type=float,
@@ -320,6 +322,8 @@ if __name__ == "__main__":
         help="Choose whether the needle should be random at each iteration")
     parser.add_argument("--batchnorm", default = False,
         action='store_true', help="Choose whether to use batchnorm")
+    parser.add_argument("--lr", default=1e-3, type=float,
+        help="Learning rate for optimizer")
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
 

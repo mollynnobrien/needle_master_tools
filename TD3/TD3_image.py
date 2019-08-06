@@ -14,7 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Paper: https://arxiv.org/abs/1802.09477
 
 class TD3:
-    def __init__(self, state_dim, action_dim, img_stack, max_action, mode):
+    def __init__(self, state_dim, action_dim, img_stack, max_action, mode, lr):
 
         self.action_dim = action_dim
         self.max_action = max_action
@@ -40,12 +40,13 @@ class TD3:
             raise ValueError('Unrecognized mode ' + mode)
 
         self.actor_target.load_state_dict(self.actor.state_dict())
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters())
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
+                lr=lr)
 
         self.critic_optimizers = []
         for critic, critic_target in zip(self.critics, self.critic_targets):
             critic_target.load_state_dict(critic.state_dict())
-            self.critic_optimizers.append(torch.optim.Adam(critic.parameters()))
+            self.critic_optimizers.append(torch.optim.Adam(critic.parameters(), lr=lr))
 
     def select_action(self, state):
         # Copy as uint8
@@ -78,6 +79,7 @@ class TD3:
         batch_size = args.batch_size
         discount = args.discount
         tau = args.tau
+        actor_tau = args.actor_tau
         # Noise to add smoothing
         policy_noise = args.policy_noise
         noise_clip = args.noise_clip
@@ -151,7 +153,7 @@ class TD3:
 
             for param, param_t in zip(self.actor.parameters(),
                     self.actor_target.parameters()):
-                param_t.data.copy_(tau * param.data + (1 - tau) * param_t.data)
+                param_t.data.copy_(actor_tau * param.data + (1 - actor_tau) * param_t.data)
 
             ret_actor_loss = actor_loss.item()
 
