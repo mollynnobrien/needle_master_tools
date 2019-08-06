@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import seaborn as sns; sns.set()
 import matplotlib.pyplot as plt
+plt.style.use('seaborn-whitegrid')
 #import pandas as pd
 
 # Code based on:
@@ -139,10 +140,13 @@ class OUNoise:
 
 # Plots min, max and mean + standard deviation bars of a population over time
 def plot_line(xs, ys, title, path=''):
-    #d = {'Time': xs, 'Reward': ys}
-    #df = pd.DataFrame(data=d)
-    #plot = sns.lineplot(data=df)
-    plot = sns.lineplot(x=xs, y=ys)
-    fig = plot.get_figure()
+    # Use seaborn
+    #plot = sns.lineplot(x=xs, y=ys)
+    #fig = plot.get_figure()
+
+    # Use pyplot
+    fig = plt.figure()
+    ax = plt.axes()
+    ax.plot(np.array(xs), np.array(ys))
     return fig
 
