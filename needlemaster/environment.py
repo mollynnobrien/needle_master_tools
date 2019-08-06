@@ -263,7 +263,13 @@ class Environment:
             y2gate = self.needle.y - self.gates[self.next_gate].y
             dist = np.sqrt(x2gate * x2gate + y2gate * y2gate)
             if self.last_dist is not None:
-                reward += (self.last_dist - dist)/1000
+                delta = (self.last_dist - dist)/1000
+                if delta < 0:
+                    #delta *= 10.
+                    delta = -0.1
+                else:
+                    delta = 0.05
+                reward += delta
             self.last_dist = dist
 
         # Time penalty
