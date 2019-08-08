@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import seaborn as sns; sns.set()
+#import seaborn as sns; sns.set()
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-whitegrid')
 #import pandas as pd
