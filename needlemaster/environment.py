@@ -251,10 +251,13 @@ class Environment:
 
         status = self._update_and_get_next_gate_status()
         if status == 'passed':
+            self.last_dist = None
             reward += 100
         elif status == 'failed':
+            self.last_dist = None
             reward -= 1
         elif status == 'done':
+            self.last_dist = None
             done = True
 
         # Distance reward component
@@ -265,10 +268,13 @@ class Environment:
             if self.last_dist is not None:
                 delta = (self.last_dist - dist)/1000
                 if delta < 0:
-                    #delta *= 10.
-                    delta = -0.1
+                    delta *= 10.
+                    #delta = -0.1
+                elif delta == 0:
+                    delta = -0.5 # no standing still!
                 else:
-                    delta = 0.05
+                    pass
+                    #delta = 0.05
                 reward += delta
             self.last_dist = dist
 
@@ -281,7 +287,7 @@ class Environment:
         if (self.needle.x <= 0 or self.needle.x >= self.width or
                 self.needle.y <= 0 or self.needle.y >= self.height):
             pass
-            reward -= 0.5
+            #reward -= 0.5
             #done = True
 
         if self._deep_tissue_intersect():
