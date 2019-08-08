@@ -15,25 +15,32 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class TD3:
     def __init__(self, state_dim, action_dim, img_stack,
-            max_action, mode, lr, actor_lr):
+            max_action, mode, lr, actor_lr=None, lr2=None,
+            bn=False):
 
         self.action_dim = action_dim
         self.max_action = max_action
         self.mode = mode
+        lr2 = lr if lr2 is None else lr2
+        actor_lr = lr if actor_lr is None else actor_lr
 
         if self.mode == 'rgb_array':
-             self.actor = ActorImage(action_dim, img_stack, max_action).to(device)
+             self.actor = ActorImage(
+                     action_dim, img_stack, max_action, bn=bn).to(device)
              self.actor_target = ActorImage(action_dim, img_stack, max_action).to(device)
              def create_critic():
-                 return CriticImage(action_dim, img_stack).to(device)
+                 return CriticImage(
+                     action_dim, img_stack, bn=bn).to(device)
 
              self.critics = [create_critic() for _ in xrange(2)]
              self.critic_targets = [create_critic() for _ in xrange(2)]
         elif self.mode == 'state':
-            self.actor = ActorState(state_dim, action_dim, max_action).to(device)
-            self.actor_target = ActorState(state_dim, action_dim, max_action).to(device)
+            self.actor = ActorState(
+                    state_dim, action_dim, max_action, bn=bn).to(device)
+            self.actor_target = ActorState(
+                    state_dim, action_dim, max_action, bn=bn).to(device)
             def create_critic():
-                return CriticState(state_dim, action_dim).to(device)
+                return CriticState(state_dim, action_dim, bn=bn).to(device)
 
             self.critics = [create_critic() for _ in xrange(2)]
             self.critic_targets = [create_critic() for _ in xrange(2)]
@@ -42,13 +49,18 @@ class TD3:
 
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
-                lr=actor_lr)
+               lr=actor_lr)
+        #self.actor_optimizer = torch.optim.SGD(self.actor.parameters(),
+        #        lr=actor_lr, momentum=0.)
 
         self.critic_optimizers = []
-        for critic, critic_target in zip(self.critics, self.critic_targets):
+        for critic, critic_target, crit_lr in zip(
+                self.critics, self.critic_targets, (lr,lr2)):
             critic_target.load_state_dict(critic.state_dict())
             self.critic_optimizers.append(torch.optim.Adam(
-                critic.parameters(), lr=lr))
+                critic.parameters(), lr=crit_lr))
+            #self.critic_optimizers.append(torch.optim.SGD(
+            #    critic.parameters(), lr=crit_lr, momentum=0.))
 
     def select_action(self, state):
         # Copy as uint8
@@ -82,6 +94,7 @@ class TD3:
         discount = args.discount
         tau = args.tau
         actor_tau = args.actor_tau
+
         # Noise to add smoothing
         policy_noise = args.policy_noise
         noise_clip = args.noise_clip

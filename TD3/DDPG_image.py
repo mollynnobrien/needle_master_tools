@@ -19,11 +19,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # We have greyscale, and then one RGB
 
 class DDPG(object):
-    def __init__(self, state_dim, action_dim, img_stack, max_action, mode, bn=False):
+    def __init__(self, state_dim, action_dim, img_stack,
+            max_action, mode, lr, bn=False, actor_lr=None):
 
         self.max_action = max_action
         self.action_dim = action_dim
         self.mode = mode
+        actor_lr = lr if actor_lr is None else actor_lr
         if self.mode == 'rgb_array':
             self.actor = ActorImage(action_dim, img_stack, max_action).to(device)
             self.actor_target = ActorImage(action_dim, img_stack, max_action).to(device)
@@ -38,10 +40,12 @@ class DDPG(object):
             raise ValueError('Unrecognized mode ' + mode)
 
         self.actor_target.load_state_dict(self.actor.state_dict())
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters())
+        self.actor_optimizer = torch.optim.Adam(
+                self.actor.parameters(), lr=actor_lr)
 
         self.critic_target.load_state_dict(self.critic.state_dict())
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters())
+        self.critic_optimizer = torch.optim.Adam(
+                self.critic.parameters(), lr=lr)
 
     def select_action(self, state):
         # Copy as uint8
@@ -75,6 +79,7 @@ class DDPG(object):
         batch_size = args.batch_size
         discount = args.discount
         tau = args.tau
+        actor_tau = args.actor_tau
 
         # Sample replay buffer
         x, y, u, r, d, indices, w = replay_buffer.sample(
@@ -130,7 +135,7 @@ class DDPG(object):
             target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
         for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
-            target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+            target_param.data.copy_(actor_tau * param.data + (1 - actor_tau) * target_param.data)
 
         return critic_loss.item(), actor_loss.item()
 
