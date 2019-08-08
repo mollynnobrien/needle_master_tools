@@ -32,75 +32,46 @@ class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
+def make_conv(in_channels, out_channels, kernel_size, stride, padding, bn=False):
+    l = []
+    l.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding))
+    l.append(nn.ReLU())
+    if bn:
+        l.append(nn.BatchNorm2d(out_channels))
+    return l
+
 class BaseImage(nn.Module):
-    def __init__(self, img_stack):
+    def __init__(self, img_stack, bn=False):
         super(BaseImage, self).__init__()
-        self.encoder = nn.Sequential(
 
-            ## input size:[img_stack, 224, 224]
+        ## input size:[img_stack, 224, 224]
 
-            #---
-            nn.Conv2d(calc_features(img_stack), 128, 3, 2, padding=1), ## [16, 112, 112]
-            nn.ReLU(),
-            nn.BatchNorm2d(128),
-
-            nn.Conv2d(128, 64, 3, 1, padding=1), ## [16, 112, 112]
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            #---
-            nn.Conv2d(64, 128, 3 ,2, padding=1),   ## [32, 56, 56]
-            nn.ReLU(),
-            nn.BatchNorm2d(128),
-
-            nn.Conv2d(128, 32, 3 ,1, padding=1),   ## [32, 56, 56]
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            #---
-            nn.Conv2d(32, 256, 3, 2, padding=1),   ## [64, 28, 28]
-            nn.ReLU(),
-            nn.BatchNorm2d(256),
-
-            nn.Conv2d(256, 64, 3, 1, padding=1),   ## [128, 28, 28]
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            #---
-            nn.Conv2d(64, 512, 3, 2, padding=1),   ## [64, 14, 14]
-            nn.ReLU(),
-            nn.BatchNorm2d(512),
-
-            nn.Conv2d(512, 128, 3, 1, padding=1),   ## [128, 14, 14]
-            nn.ReLU(),
-            nn.BatchNorm2d(128),
-            #---
-            nn.Conv2d(128, 1024, 3, 2, padding=1),  ## [512, 7, 7]
-            nn.ReLU(),
-            nn.BatchNorm2d(1024),
-
-            nn.Conv2d(1024, 256, 3, 1, padding=1),  ## [256, 7, 7]
-            nn.ReLU(),
-            nn.BatchNorm2d(256),
-            #---
-            Flatten(),   ## 256*7*7
-        )
+        ll = []
+        in_f = calc_features(img_stack)
+        ll.extend(make_conv(in_f,128,  3, 2, 1, bn=bn))  ## [112, 112]
+        ll.extend(make_conv(128,  64,  3, 1, 1, bn=bn)), ## [112, 112]
+        ll.extend(make_conv(64,  128,  3, 2, 1, bn=bn)), ## [56, 56]
+        ll.extend(make_conv(128,  32,  3, 1, 1, bn=bn)), ## [56, 56]
+        ll.extend(make_conv(32,  256,  3, 2, 1, bn=bn)), ## [28, 28]
+        ll.extend(make_conv(256,  64,  3, 1, 1, bn=bn)), ## [28, 28]
+        ll.extend(make_conv(64,  512,  3, 2, 1, bn=bn)), ## [14, 14]
+        ll.extend(make_conv(512, 128,  3, 1, 1, bn=bn)), ## [14, 14]
+        ll.extend(make_conv(128, 1024, 3, 2, 1, bn=bn)), ## [7, 7]
+        ll.extend(make_conv(1024, 256, 3, 1, 1, bn=bn)), ## [7, 7]
+        ll.extend([Flatten()])
+        self.encoder = nn.Sequential(*ll)
 
 class ImageToPos(BaseImage):
     ''' Class converting the image to a position of the needle.
         We train on this to accelerate RL training off images
     '''
-    def __init__(self, img_stack, out_size=3):
-        super(ImageToPos, self).__init__(img_stack)
+    def __init__(self, img_stack, out_size=3, bn=False):
+        super(ImageToPos, self).__init__(img_stack, bn)
 
-        self.linear = nn.Sequential(
-            nn.Linear(latent_dim, 400),
-            nn.ReLU(),
-            nn.BatchNorm1d(400),
-
-            #nn.Linear(400, 100),
-            #nn.ReLU(),
-            #nn.BatchNorm1d(100),
-
-            nn.Linear(400, out_size) # x, y, w
-        )
+        ll = []
+        ll.extend(make_linear(latent_dim, 400, bn=bn))
+        ll.extend([nn.Linear(400, out_size)]) # x, y, w
+        self.linear = nn.Sequential(*ll)
 
     def forward(self, x):
         x = self.encoder(x)
@@ -108,42 +79,34 @@ class ImageToPos(BaseImage):
         return x
 
 class ActorImage(BaseImage):
-    def __init__(self, action_dim, img_stack, max_action):
-        super(ActorImage, self).__init__(img_stack)
+    def __init__(self, action_dim, img_stack, max_action, bn=False):
+        super(ActorImage, self).__init__(img_stack, bn=bn)
 
-        self.linear = nn.Sequential(
-            nn.Linear(latent_dim, 400),
-            nn.ReLU(),
-            nn.BatchNorm1d(400),
-            nn.Linear(400, 100),
-            nn.ReLU(),
-            nn.BatchNorm1d(100),
-        )
+        ll = []
+        ll.extend(make_linear(latent_dim, 400, bn=bn))
+        ll.extend(make_linear(400, 100, bn=bn))
+        self.linear = nn.Sequential(*ll)
 
-        self.out_angular = nn.Linear(100, int(action_dim))
+        self.out_angular = nn.Linear(100, action_dim)
         self.max_action = max_action
 
     def forward(self, x):
         x = self.encoder(x)
-        x = linear(x)
+        x = self.linear(x)
         x = self.out_angular(x)
         #x = torch.clamp(x, min=-1., max=1.) * self.max_action
         x = torch.tanh(x) * self.max_action
         return x
 
 class CriticImage(BaseImage):
-    def __init__(self, action_dim, img_stack):
-        super(CriticImage, self).__init__(img_stack)
+    def __init__(self, action_dim, img_stack, bn=False):
+        super(CriticImage, self).__init__(img_stack, bn=bn)
 
-        self.linear = nn.Sequential(
-            nn.Linear(latent_dim + action_dim, 400),
-            nn.ReLU(),
-            nn.BatchNorm1d(400),
-            nn.Linear(400, 100),
-            nn.ReLU(),
-            nn.BatchNorm1d(100),
-            nn.Linear(100, 1),
-        )
+        ll = []
+        ll.extend(make_linear(latent_dim + action_dim, 400, bn=bn))
+        ll.extend(make_linear(400, 100, bn=bn))
+        ll.extend([nn.Linear(100, 1)])
+        self.linear = nn.Sequential(*ll)
 
     def forward(self, x, u):
         x = self.encoder(x)
