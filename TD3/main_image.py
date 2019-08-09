@@ -43,8 +43,8 @@ def evaluate_policy(tb_writer, total_times, total_rewards,
     total_rewards.append(avg_reward)
     fig = plot_line(np.array(total_times), np.array(total_rewards), 'Reward',
         path = test_path)
-    tb_writer.add_figure('rewards', fig)
-    tb_writer.add_image('run', img.transpose(0, 2, 1))
+    tb_writer.add_figure('rewards', fig, global_step=time)
+    tb_writer.add_image('run', img.transpose(0, 2, 1), global_step=time)
 
     print ("In {} episodes, R={:.4f}, A avg={:.2f}, std={:.2f}, "
         "min={:.2f}, max={:.2f}".format(
@@ -94,7 +94,8 @@ def run(args):
     log_f = open('log_' + base_filename + '.txt', 'w')
 
     """ setting up environment """
-    env = Environment(filename = args.filename, mode=args.mode, stack_size = args.stack_size)
+    env = Environment(filename = args.filename, mode=args.mode,
+            stack_size = args.stack_size, img_dim=args.img_dim)
 
     """ setting up PID controller """
     #action_constrain = [10, np.pi/20]
@@ -127,12 +128,12 @@ def run(args):
         from .TD3_image import TD3
         policy = TD3(state_dim, action_dim, args.stack_size,
             max_action, args.mode, lr=args.lr, lr2=args.lr2,
-            actor_lr=args.actor_lr, bn=args.batchnorm)
+            actor_lr=args.actor_lr, bn=args.batchnorm, img_dim=args.img_dim)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
         policy = DDPG(state_dim, action_dim, args.stack_size,
             max_action, args.mode, bn=args.batchnorm,
-            lr=args.lr, actor_lr=args.actor_lr)
+            lr=args.lr, actor_lr=args.actor_lr, img_dim=args.img_dim)
     else:
         raise ValueError(
             args.policy_name + ' is not recognized as a valid policy')
@@ -308,7 +309,8 @@ if __name__ == "__main__":
     parser.add_argument("--noise_clip", default=0.1, type=float,
         help='TD3 Range to clip target policy noise') # was 0.5
 
-    parser.add_argument("--max_size", default=1e6, type=int,
+    # For images, need smaller (1e4)
+    parser.add_argument("--max_size", default=1e6, type=float,
         help='Size of replay buffer (bigger is better)')
     parser.add_argument("--stack_size", default=2, type=int,
         help='How much history to use')
@@ -324,6 +326,8 @@ if __name__ == "__main__":
         help="Choose whether the needle should be random at each iteration")
     parser.add_argument("--batchnorm", default = False,
         action='store_true', help="Choose whether to use batchnorm")
+    parser.add_argument("--img-dim", default = 224, type=int,
+        help="Size of img (224 is max, 112/56 is optional)")
 
     parser.add_argument("--policy_freq", default=2, type=int,
         help='Frequency of TD3 delayed actor policy updates')
@@ -349,6 +353,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     args.ou_noise = not args.no_ou_noise
+
+    # Check for replay buffer that's too big
+    if args.mode == 'rgb_array' and args.max_size > 1e4:
+        args.max_size = 1e4
+
     if args.profile:
         import cProfile
         cProfile.run('run(args)', sort='cumtime')

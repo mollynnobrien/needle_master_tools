@@ -41,23 +41,34 @@ def make_conv(in_channels, out_channels, kernel_size, stride, padding, bn=False)
     return l
 
 class BaseImage(nn.Module):
-    def __init__(self, img_stack, bn=False):
+    def __init__(self, img_stack, bn=False, img_dim=224):
         super(BaseImage, self).__init__()
 
         ## input size:[img_stack, 224, 224]
 
         ll = []
         in_f = calc_features(img_stack)
-        ll.extend(make_conv(in_f,128,  3, 2, 1, bn=bn))  ## [112, 112]
-        ll.extend(make_conv(128,  64,  3, 1, 1, bn=bn)), ## [112, 112]
-        ll.extend(make_conv(64,  128,  3, 2, 1, bn=bn)), ## [56, 56]
-        ll.extend(make_conv(128,  32,  3, 1, 1, bn=bn)), ## [56, 56]
-        ll.extend(make_conv(32,  256,  3, 2, 1, bn=bn)), ## [28, 28]
-        ll.extend(make_conv(256,  64,  3, 1, 1, bn=bn)), ## [28, 28]
-        ll.extend(make_conv(64,  512,  3, 2, 1, bn=bn)), ## [14, 14]
-        ll.extend(make_conv(512, 128,  3, 1, 1, bn=bn)), ## [14, 14]
-        ll.extend(make_conv(128, 1024, 3, 2, 1, bn=bn)), ## [7, 7]
-        ll.extend(make_conv(1024, 256, 3, 1, 1, bn=bn)), ## [7, 7]
+        if img_dim == 224:
+            ll.extend(make_conv(in_f,128,  3, 2, 1, bn=bn)), ## 112
+            ll.extend(make_conv(128,  64,  3, 1, 1, bn=bn)), ## 112
+            ll.extend(make_conv(64,  128,  3, 2, 1, bn=bn)), ## 56
+            ll.extend(make_conv(128,  32,  3, 1, 1, bn=bn)), ## 56
+            ll.extend(make_conv(32,  256,  3, 2, 1, bn=bn)), ## 28
+        elif img_dim == 112:
+            ll.extend(make_conv(in_f, 128, 3, 2, 1, bn=bn)),  ## 56
+            ll.extend(make_conv(128,  32,  3, 1, 1, bn=bn)),  ## 56
+            ll.extend(make_conv(32,  256,  3, 2, 1, bn=bn)),  ## 28
+        elif img_dim == 56:
+            ll.extend(make_conv(in_f,256,  3, 2, 1, bn=bn)),  ## 28
+        else:
+            raise ValueError(str(img_dim) + " is not a valid img-dim")
+
+        ll.extend(make_conv(256,  64,  3, 1, 1, bn=bn)),  ## 28
+        ll.extend(make_conv(64,  512,  3, 2, 1, bn=bn)),  ## 14
+        ll.extend(make_conv(512, 128,  3, 1, 1, bn=bn)),  ## 14
+        ll.extend(make_conv(128, 1024, 3, 2, 1, bn=bn)),  ## 7
+        ll.extend(make_conv(1024, 256, 3, 1, 1, bn=bn)),  ## 7
+
         ll.extend([Flatten()])
         self.encoder = nn.Sequential(*ll)
 
@@ -65,8 +76,8 @@ class ImageToPos(BaseImage):
     ''' Class converting the image to a position of the needle.
         We train on this to accelerate RL training off images
     '''
-    def __init__(self, img_stack, out_size=3, bn=False):
-        super(ImageToPos, self).__init__(img_stack, bn)
+    def __init__(self, img_stack, out_size=3, bn=False, img_dim=224):
+        super(ImageToPos, self).__init__(img_stack, bn, img_dim=img_dim)
 
         ll = []
         ll.extend(make_linear(latent_dim, 400, bn=bn))
@@ -79,8 +90,8 @@ class ImageToPos(BaseImage):
         return x
 
 class ActorImage(BaseImage):
-    def __init__(self, action_dim, img_stack, max_action, bn=False):
-        super(ActorImage, self).__init__(img_stack, bn=bn)
+    def __init__(self, action_dim, img_stack, max_action, bn=False, img_dim=224):
+        super(ActorImage, self).__init__(img_stack, bn=bn, img_dim=img_dim)
 
         ll = []
         ll.extend(make_linear(latent_dim, 400, bn=bn))
@@ -99,8 +110,8 @@ class ActorImage(BaseImage):
         return x
 
 class CriticImage(BaseImage):
-    def __init__(self, action_dim, img_stack, bn=False):
-        super(CriticImage, self).__init__(img_stack, bn=bn)
+    def __init__(self, action_dim, img_stack, bn=False, img_dim=224):
+        super(CriticImage, self).__init__(img_stack, bn=bn, img_dim=img_dim)
 
         ll = []
         ll.extend(make_linear(latent_dim + action_dim, 400, bn=bn))

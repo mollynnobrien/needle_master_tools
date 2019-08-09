@@ -31,7 +31,7 @@ class Environment:
     record_interval_t = 3
 
     def __init__(self, mode, stack_size, log_file=None,
-            filename=None, max_time=150):
+            filename=None, max_time=150, img_dim=224):
         self.t = 0
         self.height = 0
         self.width = 0
@@ -49,10 +49,11 @@ class Environment:
         """ create image stack """
         self.stack_size = stack_size
         self.log_file = log_file
+        self.img_dim = img_dim
 
         self.is_init = False  # One-time stuff to do at reset
         # Create screen for scaling down
-        self.scaled_screen = pygame.Surface((224, 224))
+        self.scaled_screen = pygame.Surface((self.img_dim, self.img_dim))
         pygame.font.init()
         self.reset()
 
@@ -127,7 +128,11 @@ class Environment:
         if self.scaled_screen is not None:
             # Precreate surface with final dim and use ~DestSurface
             # Also consider smoothscale
-            pygame.transform.scale(self.screen, [224, 224], self.scaled_screen)
+            if self.img_dim < 224:
+                scale = pygame.transform.smoothscale
+            else:
+                scale = pygame.transform.scale
+            scale(self.screen, [self.img_dim, self.img_dim], self.scaled_screen)
             surface = self.scaled_screen
 
         if save_image:
@@ -564,7 +569,9 @@ class Needle:
         self.env_width = env_width
         self.env_height = env_height
 
-        self.needle_color = np.array([134., 200., 188.])
+        #self.needle_color = np.array([134., 200., 188.]) 
+        # Make needle clearer
+        self.needle_color = np.array([0., 0., 0.]) 
         self.thread_color = np.array([167., 188., 214.])
 
         # Save adjusted thread points since we don't use them for anything

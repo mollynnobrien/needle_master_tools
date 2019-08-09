@@ -16,7 +16,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class TD3:
     def __init__(self, state_dim, action_dim, img_stack,
             max_action, mode, lr, actor_lr=None, lr2=None,
-            bn=False):
+            bn=False, img_dim=224):
 
         self.action_dim = action_dim
         self.max_action = max_action
@@ -25,12 +25,16 @@ class TD3:
         actor_lr = lr if actor_lr is None else actor_lr
 
         if self.mode == 'rgb_array':
-             self.actor = ActorImage(
-                     action_dim, img_stack, max_action, bn=bn).to(device)
-             self.actor_target = ActorImage(action_dim, img_stack, max_action).to(device)
+             def create_actor():
+                return ActorImage(action_dim, img_stack, max_action,
+                        bn=bn, img_dim=img_dim).to(device)
+
+             self.actor = create_actor()
+             self.actor_target = create_actor()
+
              def create_critic():
-                 return CriticImage(
-                     action_dim, img_stack, bn=bn).to(device)
+                 return CriticImage(action_dim, img_stack, bn=bn,
+                         img_dim=img_dim).to(device)
 
              self.critics = [create_critic() for _ in xrange(2)]
              self.critic_targets = [create_critic() for _ in xrange(2)]
