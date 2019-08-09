@@ -562,7 +562,7 @@ class Needle:
         self.dw = 0.0
         self.corners = None
 
-        self.length_const = 0.08
+        self.length_const = 0.12
         self.scale = np.sqrt(env_width ** 2 + env_height ** 2)
         self.is_moving = False
 
@@ -600,7 +600,7 @@ class Needle:
 
         lcosw = length * math.cos(w)
         lsinw = length * math.sin(w)
-        scale = 0.01 * self.scale
+        scale = 0.03 * self.scale
 
         # Back of the needle
         top_w = w - math.pi/2
