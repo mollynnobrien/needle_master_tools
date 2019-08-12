@@ -61,7 +61,11 @@ def run(args):
 
     times, rewards, best_avg_reward = [], [], -1e5
 
-    tb_writer = SummaryWriter()
+    base_filename = '{}_{}_{}_{}_dim{}'.format(
+        args.env_name, env_data_name, args.policy_name, args.mode, 'bn' if args.batchnorm else 'nobn',
+        args.img_dim)
+
+    tb_writer = SummaryWriter(comment=base_filename)
 
     def make_dirs(args):
         path = pjoin(env_data_name, args.policy_name, args.mode)
@@ -75,8 +79,6 @@ def run(args):
         return save_p, test_p, result_p
 
     save_path, test_path, result_path = make_dirs(args)
-    base_filename = '{}_{}_{}'.format(
-        args.env_name, args.policy_name, env_data_name)
 
     # Set random seeds
     random.seed(args.seed)
