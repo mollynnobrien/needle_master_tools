@@ -4,9 +4,10 @@ import random, math
 import os, sys, argparse
 from os.path import abspath
 from os.path import join as pjoin
-from plotly.graph_objs import Scatter
-from plotly.graph_objs.scatter import Line
 import plotly
+from torch.utils.tensorboard import SummaryWriter
+
+from models import ImageToPos
 
 cur_dir= os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
@@ -17,7 +18,10 @@ Train the CNN to see the position of the needle, before we start
 using RL
 '''
 
+
 def train(args):
+    writer = SummaryWriter()
+
     mode = 'both'
     seed = 1e5
 
@@ -37,15 +41,15 @@ def train(args):
 
     """ setting up environment """
     env = Environment(filename = args.filename, mode=mode,
-        stack_size = args.stack_size)
+        stack_size = args.stack_size, img_dim=args.img_dim)
 
     # Initialize policy
     action_dim = 1
     state_dim = len(env.gates) + 9
-    from .DDPG_image import ImageToPos
 
     out_size = 4
-    model = ImageToPos(args.stack_size, out_size).to(args.device)
+    model = ImageToPos(args.stack_size, out_size, img_dim=args.img_dim,
+            bn=args.batchnorm).to(args.device)
     model.train() # for batchnorm
 
     #opt = torch.optim.Adam(model.parameters())
@@ -55,6 +59,12 @@ def train(args):
     render_freq = 500
 
     losses = []
+    min_loss = sys.max_int
+
+    def save_model():
+        torch.save(model.encoder.state_dict(), pjoin('models',
+            'encoder_{}{}.pth'.format(args.img_dim,
+                '_bn' if args.batchnorm else '')))
 
     for iter in xrange(max_iter):
         images, states = [], []
@@ -62,7 +72,7 @@ def train(args):
         for j in xrange(args.batch_size):
             i, s = env.reset(random_needle=True)
             if (iter_mult + j) % render_freq == 0:
-                env.render(save_image=True, save_path='./img/')
+                env.render(save_image=True, save_path='./out_img/')
             #print s.shape, i.shape
             images.append(i)
             states.append(s[:, 0:4])
@@ -75,19 +85,23 @@ def train(args):
 
         y2 = model(x) # apply CNN
         loss = ((y2 - y) * (y2 - y))
-        #print y2.shape, y.shape, loss.shape
-        #sys.exit(1)
+        #print y2.shape, y.shape, loss.shape #debug
         loss2 = loss[0].clone().detach().cpu().sqrt().numpy()
         loss = loss.mean()
-        losses.append(loss)
 
         opt.zero_grad()
         loss.backward()
         opt.step()
 
+        losses.append(loss.item())
+        writer.add_scalar('Loss/train', loss, iter)
+
+        if iter % args.save_freq == 0 and loss < min_loss:
+            min_loss = loss
+            save_model()
+
         print "Iter {} Loss = {:.5f}, {}".format(iter, loss, loss2)
 
-        iter += 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -107,13 +121,11 @@ if __name__ == "__main__":
         help='Max time steps to run environment for')
     parser.add_argument("--learning_start", default=0, type=int,
         help='Timesteps before learning')
-    parser.add_argument("--save_models", action= "store",
-        help='Whether or not models are saved')
     parser.add_argument("--expl_noise", default=0.5, type=float,
         help='Starting std of Gaussian exploration noise')
     parser.add_argument("--epsilon_greedy", default=0.08, type=float,
         help='Starting percentage of choosing random noise')
-    parser.add_argument("--batch_size", default=32, type=int,
+    parser.add_argument("--batch-size", default=32, type=int,
         help='Batch size for both actor and critic')
     parser.add_argument("--discount", default=0.99, type=float,
         help='Discount factor')
@@ -134,8 +146,13 @@ if __name__ == "__main__":
         help="Profile the program for performance")
     parser.add_argument("--mode", default = 'state',
         help="Choose image or state, options are rgb_array and state")
+    parser.add_argument("--img-dim", default = 224, type=int,
+        help="Size of img (224 is max, 112/56 is optional)")
+    parser.add_argument("--batchnorm", default = False,
+        action='store_true', help="Choose whether to use batchnorm")
+    parser.add_argument("--save-freq", default=500,
+        help="How often to save the model")
     parser.add_argument("filename", help='File for environment')
-    parser.add_argument("policy_name", default="TD3", type=str)
 
     args = parser.parse_args()
     train(args)

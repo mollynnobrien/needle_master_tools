@@ -128,12 +128,14 @@ def run(args):
         from .TD3_image import TD3
         policy = TD3(state_dim, action_dim, args.stack_size,
             max_action, args.mode, lr=args.lr, lr2=args.lr2,
-            actor_lr=args.actor_lr, bn=args.batchnorm, img_dim=args.img_dim)
+            actor_lr=args.actor_lr, bn=args.batchnorm, img_dim=args.img_dim,
+            load_encoder=args.load_encoder)
     elif args.policy_name == 'ddpg':
         from .DDPG_image import DDPG
         policy = DDPG(state_dim, action_dim, args.stack_size,
             max_action, args.mode, bn=args.batchnorm,
-            lr=args.lr, actor_lr=args.actor_lr, img_dim=args.img_dim)
+            lr=args.lr, actor_lr=args.actor_lr, img_dim=args.img_dim,
+            load_encoder=args.load_encoder)
     else:
         raise ValueError(
             args.policy_name + ' is not recognized as a valid policy')
@@ -346,7 +348,9 @@ if __name__ == "__main__":
         help="Learning rate for second critic optimizer")
     parser.add_argument("--actor-lr", default=1e-5, type=float,
         help="Learning rate for actor optimizer")
-    #---
+    #--- Model save/load
+    parser.add_argument("--load-encoder", default='', type=str,
+        help="File from which to load the encoder model")
 
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy_name", default="TD3", type=str)
