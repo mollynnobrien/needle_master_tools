@@ -10,11 +10,9 @@ cur_dir = os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
 from needlemaster.environment_discrete import Environment, PID
 
-
 # Globals
 Ts, rewards, Qs, best_avg_reward = [], [], [], -1e10
 img_stack = 4
-
 
 ## for pycharm
 # env_name = 'environment_1'
@@ -26,6 +24,7 @@ def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
   global Ts, rewards, Qs, best_avg_reward
   # env = Environment(args)
   env = Environment(mode = args.mode, stack_size = img_stack, filename = args.filename)
+  env.episode_num = 0
 
   ## for pycharm
   # env = Environment(args.policy_name, img_stack, env_path)
