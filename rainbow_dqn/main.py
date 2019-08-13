@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', help='ATARI game')
-parser.add_argument('--T-max', type=int, default=int(1e6), metavar='STEPS', help='Number of training steps (4x number of frames)')
+parser.add_argument('--T-max', type=int, default=int(1e8), metavar='STEPS', help='Number of training steps (4x number of frames)')
 parser.add_argument('--max-episode-length', type=int, default=int(108e3), metavar='LENGTH', help='Max episode length (0 to disable)')
 parser.add_argument('--channels', type=int, default=1, metavar='C', help='Number of channels per image')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')
@@ -35,14 +35,14 @@ parser.add_argument('--priority-exponent', type=float, default=0.5, metavar='ω'
 parser.add_argument('--priority-weight', type=float, default=0.4, metavar='β', help='Initial prioritised experience replay importance sampling weight')
 parser.add_argument('--multi-step', type=int, default=3, metavar='n', help='Number of steps for multi-step return')
 parser.add_argument('--discount', type=float, default=0.99, metavar='γ', help='Discount factor')
-parser.add_argument('--target-update', type=int, default=int(8000), metavar='τ', help='Number of steps after which to update target network')
-parser.add_argument('--reward-clip', type=int, default=0, metavar='VALUE', help='Reward clipping (0 to disable)')
+parser.add_argument('--target-update', type=int, default=int(1500), metavar='τ', help='Number of steps after which to update target network')
+parser.add_argument('--reward-clip', type=int, default=1, metavar='VALUE', help='Reward clipping (0 to disable)')
 parser.add_argument('--lr', type=float, default=0.001, metavar='η', help='Learning rate')
 parser.add_argument('--adam-eps', type=float, default=1.5e-4, metavar='ε', help='Adam epsilon')
-parser.add_argument('--batch-size', type=int, default=128, metavar='SIZE', help='Batch size')
+parser.add_argument('--batch-size', type=int, default=64, metavar='SIZE', help='Batch size')
 parser.add_argument('--learn-start', type=int, default=int(20e3), metavar='STEPS', help='Number of steps before starting training')
 parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
-parser.add_argument('--evaluation-interval', type=int, default=1000, metavar='STEPS', help='Number of training steps between evaluations')
+parser.add_argument('--evaluation-interval', type=int, default=10000, metavar='STEPS', help='Number of training steps between evaluations')
 parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', help='Number of evaluation episodes to average over')
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--log-interval', type=int, default=25000, metavar='STEPS', help='Number of training steps between logging status')
@@ -84,10 +84,10 @@ for chr in args.filename:
     count += 1
 env_name = args.filename[start+1:end]
 
-validation_path = "./" +env_name + "/DQN_validation"
-out_path = "./" +env_name +"/DQN_out"
-test_path = "./" +env_name +"/DQN_test"
-result_path = "./" +env_name +"/DQN_results"
+validation_path = "./" +env_name + '/'+args.mode+ "/DQN_validation"
+out_path = "./" +env_name + '/'+args.mode+ "/DQN_out"
+test_path = "./" +env_name + '/'+args.mode+ "/DQN_test"
+result_path = "./" +env_name + '/'+args.mode+ "/DQN_results"
 if not os.path.exists(validation_path):
     os.makedirs(validation_path)
 if not os.path.exists(out_path):
@@ -144,7 +144,7 @@ while T < args.evaluation_size:
 
 if args.evaluate:
   dqn.eval()  # Set DQN (online network) to evaluation mode
-  avg_reward, avg_Q = test(args, 0, dqn, val_mem, test_path, result_path, evaluate=True)  # Test
+  avg_reward, avg_Q = test(env.episode_num, args, 0, dqn, val_mem, test_path, result_path, evaluate=True)  # Test
   print('Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
 
 else:
@@ -190,7 +190,8 @@ else:
         # print("evaluation inter")
         dqn.eval()  # Set DQN (online network) to evaluation mode
         # print("dqn.eval pass")
-        avg_reward, avg_Q = test(args, T, dqn, val_mem, test_path, result_path,)  # Test
+        avg_reward, avg_Q = test(env.episode_num, args, T, dqn, val_mem, test_path, result_path,)  # Test
+
         log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (online network) back to training mode
         # print("dqn.train pass")

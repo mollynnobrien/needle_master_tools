@@ -19,7 +19,7 @@ img_stack = 4
 # env_path = 'C:/Users/icage/needle_master_tools-lifan/environments/' + env_name + '.txt'
 
 # Test DQN
-def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
+def test(episode_num, args, T, dqn, val_mem, test_path, result_path, evaluate=False):
 
   global Ts, rewards, Qs, best_avg_reward
   # env = Environment(args)
@@ -29,7 +29,7 @@ def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
   # env = Environment(args.policy_name, img_stack, env_path)
   # env.eval()
   Ts.append(T)
-  T_rewards, T_Qs, episode_num = [], [], 0
+  T_rewards, T_Qs = [], []
 
   # Test performance over several episodes
   done = True
