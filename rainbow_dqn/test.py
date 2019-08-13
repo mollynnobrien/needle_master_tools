@@ -1,14 +1,14 @@
-import os
+import os,sys
+from os.path import abspath
+from os.path import join as pjoin
 import plotly
 from plotly.graph_objs import Scatter
 from plotly.graph_objs.scatter import Line
 import torch
-<<<<<<< HEAD
-from .environment import Environment
-=======
 
-#from .env import Env
->>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
+cur_dir = os.path.dirname(abspath(__file__))
+sys.path.append(abspath(pjoin(cur_dir, '..')))
+from needlemaster.environment_discrete import Environment, PID
 
 
 # Globals
@@ -24,14 +24,13 @@ img_stack = 4
 def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
 
   global Ts, rewards, Qs, best_avg_reward
-<<<<<<< HEAD
   # env = Environment(args)
-  env = Environment(args.policy_name, img_stack, args.filename)
+  env = Environment(mode = args.mode, stack_size = img_stack, filename = args.filename)
 
   ## for pycharm
   # env = Environment(args.policy_name, img_stack, env_path)
   # env.eval()
-=======
+  Ts.append(T)
   T_rewards, T_Qs = [], []
 
   # Test performance over several episodes
@@ -41,12 +40,9 @@ def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
       if done:
         state, reward_sum, done = env.reset(), 0, False
 
-<<<<<<< HEAD
       # gpu_state = state.to(dtype=torch.float32, device=args.device).div_(255)
       state = state.to(args.device)
       action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
-=======
->>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
       state, reward, done = env.step(action)  # Step
       reward_sum += reward
 
