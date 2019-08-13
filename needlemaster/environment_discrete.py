@@ -582,7 +582,7 @@ class Needle:
 
     def __init__(self, env_width, env_height, log_file, random_pos=False):
         if random_pos:
-            self.x = random.randint(0, env_width - 1)
+            self.x = random.randint(0, env_width - 1) * 0.3
             self.y = random.randint(0, env_height - 1)
             self.w = random.random() * two_pi
         else:

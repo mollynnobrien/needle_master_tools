@@ -39,7 +39,8 @@ parser.add_argument('--target-update', type=int, default=int(1500), metavar='τ'
 parser.add_argument('--reward-clip', type=int, default=1, metavar='VALUE', help='Reward clipping (0 to disable)')
 parser.add_argument('--lr', type=float, default=0.001, metavar='η', help='Learning rate')
 parser.add_argument('--adam-eps', type=float, default=1.5e-4, metavar='ε', help='Adam epsilon')
-parser.add_argument('--batch-size', type=int, default=64, metavar='SIZE', help='Batch size')
+parser.add_argument('--batch-size', type=int, default=128, metavar='SIZE', help='Batch size')
+parser.add_argument("--random_needle", default=False, action='store_true',help="Choose whether the needle should be random at each iteration")
 parser.add_argument('--learn-start', type=int, default=int(20e3), metavar='STEPS', help='Number of steps before starting training')
 parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
 parser.add_argument('--evaluation-interval', type=int, default=10000, metavar='STEPS', help='Number of training steps between evaluations')
@@ -132,7 +133,7 @@ while T < args.evaluation_size:
   if done:
     print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (T, env.episode_num, episode_timesteps, env.total_reward))
     env.render(save_image=True, save_path = validation_path)
-    state, done = env.reset(), False
+    state, done = env.reset(random_needle=args.random_needle), False
     env.episode_num += 1
     episode_timesteps = 0
 
@@ -157,7 +158,7 @@ else:
         print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (T, env.episode_num, episode_timesteps, env.total_reward))
         if env.episode_num % 20 == 0:
           env.render(save_image = True, save_path = out_path)
-        state, done = env.reset(), False
+        state, done = env.reset(random_needle=args.random_needle), False
         env.episode_num += 1
         episode_timesteps = 0
 
