@@ -24,13 +24,12 @@ def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
   global Ts, rewards, Qs, best_avg_reward
   # env = Environment(args)
   env = Environment(mode = args.mode, stack_size = img_stack, filename = args.filename)
-  env.episode_num = 0
 
   ## for pycharm
   # env = Environment(args.policy_name, img_stack, env_path)
   # env.eval()
   Ts.append(T)
-  T_rewards, T_Qs = [], []
+  T_rewards, T_Qs, episode_num = [], [], 0
 
   # Test performance over several episodes
   done = True
@@ -50,8 +49,8 @@ def test(args, T, dqn, val_mem, test_path, result_path, evaluate=False):
         T_rewards.append(reward_sum)
         break
 
-    env.episode_num += 1
-    print(("Total T: %d Episode Num: %d Reward: %f") % (T, env.episode_num, reward_sum))
+    episode_num += 1
+    print(("Total T: %d Episode Num: %d Reward: %f") % (T, episode_num, reward_sum))
 
   # Test Q-values over validation memory
   for state in val_mem:  # Iterate over valid states
