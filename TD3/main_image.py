@@ -54,21 +54,23 @@ def evaluate_policy(tb_writer, total_times, total_rewards,
     return avg_reward
 
 def run(args):
-    args.policy_name = args.policy_name.lower()
+    args.policy = args.policy.lower()
 
     env_data_name = os.path.splitext(
         os.path.basename(args.filename))[0]
 
     times, rewards, best_avg_reward = [], [], -1e5
 
-    base_filename = '{}_{}_{}_{}_dim{}'.format(
-        args.env_name, env_data_name, args.policy_name, args.mode, 'bn' if args.batchnorm else 'nobn',
-        args.img_dim)
+    base_filename = '{}_{}_{}_{}_{}_dim{}{}'.format(
+        args.env_name, env_data_name, args.policy, args.mode,
+        'bn' if args.batchnorm else 'nobn',
+        args.img_dim,
+        '_random' if args.random_needle else '')
 
     tb_writer = SummaryWriter(comment=base_filename)
 
     def make_dirs(args):
-        path = pjoin(env_data_name, args.policy_name, args.mode)
+        path = pjoin(env_data_name, args.policy, args.mode)
 
         save_p = path + '_out'
         test_p = path + '_test'
@@ -126,21 +128,27 @@ def run(args):
         state = env.reset()
         state_dim = state.shape[-1]
 
-    if args.policy_name == 'td3':
-        from .TD3_image import TD3
+    if args.policy == 'td3':
+        from TD3_image import TD3
         policy = TD3(state_dim, action_dim, args.stack_size,
             max_action, args.mode, lr=args.lr, lr2=args.lr2,
             actor_lr=args.actor_lr, bn=args.batchnorm, img_dim=args.img_dim,
             load_encoder=args.load_encoder)
-    elif args.policy_name == 'ddpg':
-        from .DDPG_image import DDPG
+    elif args.policy == 'ddpg':
+        from DDPG_image import DDPG
         policy = DDPG(state_dim, action_dim, args.stack_size,
             max_action, args.mode, bn=args.batchnorm,
             lr=args.lr, actor_lr=args.actor_lr, img_dim=args.img_dim,
             load_encoder=args.load_encoder)
+    elif args.policy == 'dqn':
+        from DQN import DQN
+        policy = DQN(state_dim, action_dim, args.action_steps, args.stack_size,
+            max_action, args.mode, bn=args.batchnorm,
+            lr=args.lr, img_dim=args.img_dim,
+            load_encoder=args.load_encoder)
     else:
         raise ValueError(
-            args.policy_name + ' is not recognized as a valid policy')
+            args.policy + ' is not recognized as a valid policy')
 
     ## load pre-trained policy
     #try:
@@ -162,7 +170,10 @@ def run(args):
     zero_noise = np.zeros((action_dim,))
     ou_noise = OUNoise(action_dim)
 
-    policy.actor.eval() # set for batchnorm
+    if args.policy in ['ddpg', 'td3']:
+        policy.actor.eval() # set for batchnorm
+    else:
+        policy.q.eval()
 
     while total_timesteps < args.max_timesteps:
 
@@ -235,7 +246,10 @@ def run(args):
                 pdb.set_trace()
             '''
 
-            policy.actor.train() # Set actor to training mode
+            if args.policy in ['ddpg', 'td3']:
+                policy.actor.train() # Set actor to training mode
+            else:
+                policy.q.train()
 
             beta = min(1.0, beta_start + total_timesteps *
                 (1.0 - beta_start) / beta_frames)
@@ -243,20 +257,21 @@ def run(args):
             critic_loss, actor_loss = policy.train(
                 replay_buffer, total_timesteps, beta, args)
 
-            print ("Training E:{:04d} S:{:03d} R: {:.3f} "
+            str = ("Training TS:{:04d} E:{:04d} S:{:03d} R: {:.3f} "
                 "CL: {:.3f} AL: {:.3f}".format(
+                  total_timesteps,
                   episode_num, env.t, env.total_reward,
-                  critic_loss, actor_loss)) # debug
-
-            ## training
-            str = 'Total:{}, Episode Num:{}, Step:{}, Reward:{}, Loss:{}'.format(
-              total_timesteps, episode_num, env.t, env.total_reward, critic_loss)
+                  critic_loss, actor_loss if actor_loss else 0)) # debug
+            print str
 
             log_f.write(str + '\n')
             if episode_num % 20 == 0:
                 env.render(save_image=True, save_path=save_path)
 
-            policy.actor.eval() # set for batchnorm
+            if args.policy in ['ddpg', 'td3']:
+                policy.actor.eval() # set for batchnorm
+            else:
+                policy.q.eval()
 
             # Reset environment
             new_state = env.reset(random_needle=args.random_needle)
@@ -324,14 +339,16 @@ if __name__ == "__main__":
         help="Profile the program for performance")
     parser.add_argument("--mode", default = 'state',
         help="Choose image or state, options are rgb_array and state")
-    parser.add_argument("--buffer", default = 'simple', # 'priority'
+    parser.add_argument("--buffer", default = 'priority', # 'priority'
         help="Choose type of buffer, options are simple and priority")
-    parser.add_argument("--random_needle", default = False, action='store_true',
+    parser.add_argument("--random-needle", default = False, action='store_true',
         help="Choose whether the needle should be random at each iteration")
     parser.add_argument("--batchnorm", default = False,
         action='store_true', help="Choose whether to use batchnorm")
     parser.add_argument("--img-dim", default = 224, type=int,
         help="Size of img (224 is max, 112/56 is optional)")
+    parser.add_argument("--action-steps", default = 50, type=int,
+        help="Number of gradations allowed for action by DQN")
 
     parser.add_argument("--policy_freq", default=2, type=int,
         help='Frequency of TD3 delayed actor policy updates')
@@ -355,7 +372,8 @@ if __name__ == "__main__":
         help="File from which to load the encoder model")
 
     parser.add_argument("filename", help='File for environment')
-    parser.add_argument("policy_name", default="TD3", type=str)
+    parser.add_argument("policy", default="TD3", type=str,
+            help="Policy type. DDPG/TD3/DQN")
 
     args = parser.parse_args()
     args.ou_noise = not args.no_ou_noise

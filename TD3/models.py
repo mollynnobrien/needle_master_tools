@@ -125,6 +125,21 @@ class CriticImage(BaseImage):
         x = self.linear(x)
         return x
 
+class QImage(BaseImage):
+    def __init__(self, action_steps, img_stack, bn=False, img_dim=224):
+        super(QImage, self).__init__(img_stack, bn=bn, img_dim=img_dim)
+
+        ll = []
+        ll.extend(make_linear(latent_dim, 400, bn=bn))
+        ll.extend(make_linear(400, 300, bn=bn))
+        ll.extend([nn.Linear(300, action_steps)])
+        self.linear = nn.Sequential(*ll)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.linear(x)
+        return x
+
 class ActorState(nn.Module):
     def __init__(self, state_dim, action_dim, max_action, bn=False):
         super(ActorState, self).__init__()
@@ -164,5 +179,23 @@ class CriticState(nn.Module):
 
     def forward(self, x, u):
         x = torch.cat([x, u], 1)
+        x = self.linear(x)
+        return x
+
+class QState(nn.Module):
+    def __init__(self, state_dim, action_steps, bn=False):
+        super(QState, self).__init__()
+
+        ll = []
+        ll.extend(make_linear(state_dim, 400, bn=bn))
+        ll.extend(make_linear(400, 300, bn=bn))
+        ll.extend(make_linear(300, 300, bn=bn))
+        ll.extend([nn.Linear(300, action_steps)])
+
+        init_layers(ll)
+
+        self.linear = nn.Sequential(*ll)
+
+    def forward(self, x):
         x = self.linear(x)
         return x

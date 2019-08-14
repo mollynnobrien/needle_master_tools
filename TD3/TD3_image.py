@@ -39,7 +39,7 @@ class TD3:
             self.critics = [create_critic() for _ in xrange(2)]
             self.critic_targets = [create_critic() for _ in xrange(2)]
 
-            # Load encoder if requested 
+            # Load encoder if requested
             if load_encoder != '':
                 print "Loading encoder model..."
                 for model in [self.actor] + self.critics:

@@ -310,6 +310,8 @@ class Environment:
         if self.t > self.max_time:
             done = True
 
+        reward /= 100
+
         self.last_reward = reward
         self.total_reward += reward
 
