@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch
 
 feat_size = 7
-latent_dim = feat_size * feat_size * 256
+latent_dim = feat_size * feat_size * 128
+
 
 def calc_features(img_stack):
     return img_stack
@@ -49,25 +50,25 @@ class BaseImage(nn.Module):
         ll = []
         in_f = calc_features(img_stack)
         if img_dim == 224:
-            ll.extend(make_conv(in_f,128,  3, 2, 1, bn=bn)), ## 112
-            ll.extend(make_conv(128,  64,  3, 1, 1, bn=bn)), ## 112
-            ll.extend(make_conv(64,  128,  3, 2, 1, bn=bn)), ## 56
-            ll.extend(make_conv(128,  32,  3, 1, 1, bn=bn)), ## 56
-            ll.extend(make_conv(32,  256,  3, 2, 1, bn=bn)), ## 28
+            ll.extend(make_conv(in_f, 16,  5, 2, 2, bn=bn)),
+            ll.extend(make_conv(16,   32,  5, 2, 2, bn=bn)),
+            ll.extend(make_conv(32,   64,  5, 2, 1, bn=bn)),
+            ll.extend(make_conv(64,  128,  3, 2, 1, bn=bn)),
+            ll.extend(make_conv(128, 256,  3, 2, 1, bn=bn)),
+            ll.extend(make_conv(256, 128,  3, 1, 1, bn=bn)), # 7
         elif img_dim == 112:
-            ll.extend(make_conv(in_f, 128, 3, 2, 1, bn=bn)),  ## 56
-            ll.extend(make_conv(128,  32,  3, 1, 1, bn=bn)),  ## 56
-            ll.extend(make_conv(32,  256,  3, 2, 1, bn=bn)),  ## 28
+            ll.extend(make_conv(in_f, 32,  5, 2, 2, bn=bn)),
+            ll.extend(make_conv(32,   64,  5, 2, 1, bn=bn)),
+            ll.extend(make_conv(64,  128,  3, 2, 1, bn=bn)),
+            ll.extend(make_conv(128, 256,  3, 2, 1, bn=bn)),
+            ll.extend(make_conv(256, 128,  3, 1, 1, bn=bn)), # 7
         elif img_dim == 56:
-            ll.extend(make_conv(in_f,256,  3, 2, 1, bn=bn)),  ## 28
+            ll.extend(make_conv(in_f, 64,  5, 2, 1, bn=bn)),
+            ll.extend(make_conv(64,  128,  3, 2, 1, bn=bn)),
+            ll.extend(make_conv(128, 256,  3, 2, 1, bn=bn)),
+            ll.extend(make_conv(256, 128,  3, 1, 1, bn=bn)), # 7
         else:
             raise ValueError(str(img_dim) + " is not a valid img-dim")
-
-        ll.extend(make_conv(256,  64,  3, 1, 1, bn=bn)),  ## 28
-        ll.extend(make_conv(64,  512,  3, 2, 1, bn=bn)),  ## 14
-        ll.extend(make_conv(512, 128,  3, 1, 1, bn=bn)),  ## 14
-        ll.extend(make_conv(128, 1024, 3, 2, 1, bn=bn)),  ## 7
-        ll.extend(make_conv(1024, 256, 3, 1, 1, bn=bn)),  ## 7
 
         ll.extend([Flatten()])
         self.encoder = nn.Sequential(*ll)
@@ -131,8 +132,7 @@ class QImage(BaseImage):
 
         ll = []
         ll.extend(make_linear(latent_dim, 400, bn=bn))
-        ll.extend(make_linear(400, 300, bn=bn))
-        ll.extend([nn.Linear(300, action_steps)])
+        ll.extend([nn.Linear(400, action_steps)])
         self.linear = nn.Sequential(*ll)
 
     def forward(self, x):
