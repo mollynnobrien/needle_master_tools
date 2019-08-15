@@ -199,8 +199,8 @@ def run(args):
 
 
         # Evaluate episode
-        if (total_timesteps % args.eval_freq == 0
-            and total_timesteps != 0):
+        if (total_timesteps > args.learning_start
+            and total_timesteps % args.eval_freq == 0):
               print ("---------------------------------------")
               if args.ou_noise:
                   print("Evaluating policy")
@@ -225,10 +225,11 @@ def run(args):
         # print("action based on PID: " + str(action))
 
         """ action selected based on pure policy """
-        action2 = policy.select_action(state)
+        if total_timesteps > args.learning_start:
+            action2 = policy.select_action(state)
+        else:
+            action2 = zero_noise
 
-        # state_pid = state[0:3]
-        # guidance = pid.PIDcontroller( state_pid, env.next_gate, env.gates, total_timesteps)
         action = np.clip(action2 + noise, -max_action, max_action)
 
         #print "action: ", action, "noise: ", noise, "action2: ", action2 # debug
@@ -241,45 +242,54 @@ def run(args):
 
         ## Train over the past episode
         if done:
+            if total_timesteps < args.learning_start:
+                str = ("Exploring TS:{:04d} E:{:04d} S:{:03d} R: {:.3f} ".format(
+                    total_timesteps,
+                    episode_num, env.t, env.total_reward,
+                    )) # debug
+                print str
 
-            '''
-            #debug
-            if episode_num > 200:
-                import pdb
-                pdb.set_trace()
-            '''
+                log_f.write(str + '\n')
+            else: # Past exploration
 
-            if args.policy in ['ddpg', 'td3']:
-                policy.actor.train() # Set actor to training mode
-            else:
-                policy.q.train()
+                '''
+                #debug
+                if episode_num > 200:
+                    import pdb
+                    pdb.set_trace()
+                '''
 
-            beta = min(1.0, beta_start + total_timesteps *
-                (1.0 - beta_start) / beta_frames)
+                if args.policy in ['ddpg', 'td3']:
+                    policy.actor.train() # Set actor to training mode
+                else:
+                    policy.q.train()
 
-            critic_loss, actor_loss = policy.train(
-                replay_buffer, total_timesteps, beta, args)
+                beta = min(1.0, beta_start + total_timesteps *
+                    (1.0 - beta_start) / beta_frames)
 
-            str = ("Training TS:{:04d} E:{:04d} S:{:03d} R: {:.3f} "
-                "CL: {:.3f} AL: {:.3f}".format(
-                  total_timesteps,
-                  episode_num, env.t, env.total_reward,
-                  critic_loss, actor_loss if actor_loss else 0)) # debug
-            print str
+                critic_loss, actor_loss = policy.train(
+                    replay_buffer, total_timesteps, beta, args)
 
-            log_f.write(str + '\n')
-            if episode_num % 20 == 0:
-                env.render(save_image=True, save_path=save_path)
+                str = ("Training TS:{:04d} E:{:04d} S:{:03d} R: {:.3f} "
+                    "CL: {:.5f} AL: {:.5f}".format(
+                    total_timesteps,
+                    episode_num, env.t, env.total_reward,
+                    critic_loss, actor_loss if actor_loss else 0)) # debug
+                print str
 
-            if args.policy in ['ddpg', 'td3']:
-                policy.actor.eval() # set for batchnorm
-            else:
-                policy.q.eval()
+                log_f.write(str + '\n')
+                if episode_num % 20 == 0:
+                    env.render(save_image=True, save_path=save_path)
+
+                if args.policy in ['ddpg', 'td3']:
+                    policy.actor.eval() # set for batchnorm
+                else:
+                    policy.q.eval()
 
             # Reset environment
+            done = False
             new_state = env.reset(random_needle=args.random_needle)
             ou_noise.reset() # reset to mean
-            done = False
             episode_num += 1
 
             # print "Training done" # debug
@@ -334,7 +344,7 @@ if __name__ == "__main__":
     # For images, need smaller (1e4)
     parser.add_argument("--max_size", default=1e6, type=float,
         help='Size of replay buffer (bigger is better)')
-    parser.add_argument("--stack_size", default=2, type=int,
+    parser.add_argument("--stack-size", default=3, type=int,
         help='How much history to use')
     parser.add_argument("--evaluation_episodes", default=1, type=int,
         help='How many times to evaluate actor (1 is enough)')

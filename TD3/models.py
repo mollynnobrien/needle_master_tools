@@ -6,7 +6,7 @@ feat_size = 7
 latent_dim = feat_size * feat_size * 256
 
 def calc_features(img_stack):
-    return img_stack - 1 + 3
+    return img_stack
 
 def make_linear(in_size, out_size, bn=False):
     l = []
