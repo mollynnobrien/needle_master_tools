@@ -38,6 +38,11 @@ class DQN(object):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optimizer = torch.optim.Adam(self.q.parameters(), lr=lr)
 
+        if load_encoder != '':
+            print "Loading encoder model..."
+            for model in [self.q, self.q_target]:
+                    model.encoder.load_state_dict(torch.load(load_encoder))
+
     def select_action(self, state):
         # Copy as uint8
         if self.mode == 'rgb_array':
