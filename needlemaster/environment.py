@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os
+import os, sys
 import math
 import random
 import numpy as np
@@ -95,9 +95,8 @@ class Environment:
             frame = self.render(save_image=False)
             # Create image stack
             gray = rgb2gray(frame)
-            self.stack = [gray] * (self.stack_size - 1)
-            ob = np.concatenate(self.stack + [frame])
-            self.stack.append(gray)
+            self.stack = [gray] * (self.stack_size)
+            ob = np.concatenate(self.stack)
 
         if self.mode in ['state', 'both']:
             state = self._get_state().reshape((1,-1))
@@ -310,7 +309,7 @@ class Environment:
         if self.t > self.max_time:
             done = True
 
-        reward /= 100
+        reward /= 10
 
         self.last_reward = reward
         self.total_reward += reward
@@ -322,9 +321,8 @@ class Environment:
             """ if from image to action """
             frame = self.render(mode='rgb_array')
             self.stack.pop(0)
-            ob = np.concatenate(self.stack + [frame])
-            # Add memory as grayscale
             self.stack.append(rgb2gray(frame))
+            ob = np.concatenate(self.stack)
             assert len(self.stack) == self.stack_size
 
         if self.mode in ['state', 'both']:
@@ -587,8 +585,8 @@ class Needle:
 
 
     def draw(self, surface):
-        self._draw_needle(surface)
         self._draw_thread(surface)
+        self._draw_needle(surface)
 
     def _compute_corners(self):
         """
