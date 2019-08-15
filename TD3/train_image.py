@@ -52,14 +52,13 @@ def train(args):
             bn=args.batchnorm).to(args.device)
     model.train() # for batchnorm
 
-    #opt = torch.optim.Adam(model.parameters())
     opt = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     max_iter = 100000
     render_freq = 500
 
     losses = []
-    min_loss = sys.max_int
+    min_loss = 10000
 
     def save_model():
         torch.save(model.encoder.state_dict(), pjoin('models',
@@ -139,7 +138,7 @@ if __name__ == "__main__":
         help='Frequency of delayed policy updates')
     parser.add_argument("--max_size", default=5e4, type=int,
         help='Frequency of delayed policy updates')
-    parser.add_argument("--stack_size", default=2, type=int,
+    parser.add_argument("--stack-size", default=3, type=int,
         help='How much history to use')
     parser.add_argument("--evaluation_episodes", default=6, type=int)
     parser.add_argument("--profile", default=False, action="store_true",
