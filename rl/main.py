@@ -132,13 +132,13 @@ def run(args):
         state_dim = state.shape[-1]
 
     if args.policy == 'td3':
-        from TD3_image import TD3
+        from TD3 import TD3
         policy = TD3(state_dim, action_dim, args.stack_size,
             max_action, args.mode, lr=args.lr, lr2=args.lr2,
             actor_lr=args.actor_lr, bn=args.batchnorm, img_dim=args.img_dim,
             load_encoder=args.load_encoder)
     elif args.policy == 'ddpg':
-        from DDPG_image import DDPG
+        from DDPG import DDPG
         policy = DDPG(state_dim, action_dim, args.stack_size,
             max_action, args.mode, bn=args.batchnorm,
             lr=args.lr, actor_lr=args.actor_lr, img_dim=args.img_dim,
