@@ -10,6 +10,9 @@ cur_dir= os.path.dirname(abspath(__file__))
 sys.path.append(abspath(pjoin(cur_dir, '..')))
 from needlemaster.environment import Environment
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from .utils import *
 
 def evaluate_policy(tb_writer, total_times, total_rewards,
