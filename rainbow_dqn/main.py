@@ -15,10 +15,16 @@ from .environment import Environment, PID
 # from needlemaster.environment import Environment, mode_rl
 
 
+""" 
+max_timesteps = T-max
+lr -> learning_rate
+policy_name -> mode 
+"""
 parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', help='ATARI game')
+
 parser.add_argument('--T-max', type=int, default=int(1e6), metavar='STEPS', help='Number of training steps (4x number of frames)')
 parser.add_argument('--max-episode-length', type=int, default=int(108e3), metavar='LENGTH', help='Max episode length (0 to disable)')
 <<<<<<< HEAD
