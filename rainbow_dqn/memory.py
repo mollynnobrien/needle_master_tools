@@ -62,9 +62,12 @@ class SegmentTree():
     return self.sum_tree[0]
 
 class ReplayMemory():
-  def __init__(self, args, capacity, default_img):
+  def __init__(self, args, capacity, default_img, max_action):
     self.device = device
     self.capacity = capacity
+    self.action_steps = args.action_steps
+    self.action_step_size = float(max_action) * 2 / self.action_steps
+    self.action_offset = self.action_step_size * self.action_steps / 2
     if args.mode == 'state':
       self.history = 1
     else:
@@ -133,6 +136,10 @@ class ReplayMemory():
     segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
     batch = [self._get_sample_from_segment(segment, i) for i in range(batch_size)]  # Get batch of valid samples
     probs, idxs, tree_idxs, states, actions, returns, next_states, nonterminals = zip(*batch)
+    # Convert action to discrete
+    actions += self.action_offset
+    actions /= self.action_step_size
+
     states, next_states, = torch.stack(states), torch.stack(next_states)
     actions, returns, nonterminals = torch.cat(actions), torch.cat(returns), torch.stack(nonterminals)
     probs = np.array(probs, dtype = np.float32)/p_total # Calculate normalised probabilities

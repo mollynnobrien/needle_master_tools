@@ -6,10 +6,17 @@ from torch import optim
 from .model import DQN_state, DQN_image
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-
+def translate_action(x):
+  translated_action = ((x.cpu().data.numpy() *
+                        self.action_step_size) - self.action_offset)
+  action = np.expand_dims(translated_action, 1)
+  return action
 class Agent():
-  def __init__(self, args, state_dim, env):
-    self.action_space = env.action_space()
+  def __init__(self, args, state_dim):
+    self.action_space = args.action_steps
+    self.action_steps = args.action_steps
+    self.action_step_size = float(max_action) * 2 / self.action_steps
+    self.action_offset = self.action_step_size * self.action_steps / 2
     self.atoms = args.atoms
     self.Vmin = args.V_min
     self.Vmax = args.V_max
@@ -42,7 +49,7 @@ class Agent():
     for param in self.target_net.parameters():
       param.requires_grad = False
 
-    self.optimiser = optim.Adam(self.online_net.parameters(), lr=args.lr, eps=args.adam_eps)
+    self.optimiser = optim.Adam(self.online_net.parameters(), lr=args.learning_rate, eps=args.adam_eps)
 
   # Resets noisy weights in all linear layers (of online net only)
   def reset_noise(self):
@@ -54,11 +61,17 @@ class Agent():
       # print(state.size())
       x = self.online_net(state.unsqueeze(0)) * self.support
       x = x.sum(2).argmax(1).item()
-      return x
+      """ Modify here  """
+      # Translate action choice to continous domain
+      action = translate_action(x)
+      # print action.shape # debug
+      return action
 
   # Acts with an ε-greedy policy (used for evaluation only)
   def act_e_greedy(self, state, epsilon=0.001):  # High ε can reduce evaluation scores drastically
-    return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
+    """ translate discrete action to continuous """
+    random_action = translate_action(random.randrange(self.action_space))
+    return random_action if random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
     # Sample transitions
@@ -112,7 +125,7 @@ class Agent():
   def load(self, path):
     self.online_net.load_state_dict(torch.load(os.path.join(path, 'model.pth')))
     ## modify here!!!
-    self.target_net.load_state_dict(torch.load(os.path.join(path, 'model.pth')))
+    self.target_net.load_state_dict(torch.load(os.path.join(path, 'model_target.pth')))
 
   # Evaluates Q-value based on single state (no batch)
   def evaluate_q(self, state):

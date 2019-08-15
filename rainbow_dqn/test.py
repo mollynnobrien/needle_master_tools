@@ -72,7 +72,7 @@ def test(episode_num, args, T, dqn, val_mem, test_path, result_path, evaluate=Fa
       dqn.save(result_path)
 
   # Return average reward and Q-value
-  return avg_reward, avg_Q
+  return best_avg_reward, avg_reward, avg_Q
 
 
 # Plots min, max and mean + standard deviation bars of a population over time
