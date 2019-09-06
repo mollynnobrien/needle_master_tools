@@ -299,151 +299,6 @@ def run(args):
 
     print("Best Reward: ", best_reward)
 
-def run_rainbow(args):
-    args.policy = args.policy.lower()
-
-    env_data_name = os.path.splitext(
-        os.path.basename(args.filename))[0]
-
-    def make_dirs(args):
-        path = pjoin(env_data_name, args.policy, args.mode)
-
-        save_p = path + '_out'
-        test_p = path + '_test'
-        result_p = path + '_results'
-        for p in [save_p, test_p, result_p]:
-          if not os.path.exists(p):
-              os.makedirs(p)
-        return save_p, test_p, result_p
-
-    save_path, test_path, result_path = make_dirs(args)
-
-    # Set random seeds
-    random.seed(args.seed)
-    torch.manual_seed(random.randint(1, 10000))
-    if torch.cuda.is_available() and not args.disable_cuda:
-        args.device = torch.device('cuda')
-        torch.cuda.manual_seed(random.randint(1, 10000))
-        # Disable nondeterministic ops (not sure if critical but better
-        # safe than sorry)
-        torch.backends.cudnn.enabled = False
-    else:
-        args.device = torch.device('cpu')
-
-    # ## environment setup
-    # log_f = open('log_' + base_filename + '.txt', 'w')
-
-    """ setting up environment """
-    env = Environment(filename = args.filename, mode=args.mode,
-            stack_size = args.stack_size, img_dim=args.img_dim)
-
-    """ setting up PID controller """
-    #action_constrain = [10, np.pi/20]
-    # parameter = [0.1,0.0009]
-    # parameter =  [0.0000001, 0.5]
-    #pid = PID( parameter, env.width, env.height )
-
-    """ setting up action bound for RL """
-    max_action = 0.25 * math.pi
-
-    # Agent
-    state = env.reset()
-    state_dim = state.size()[1]
-    dqn = Agent(args, state_dim)
-    mem = ReplayMemory(args, args.memory_capacity, env.reset(), max_action)
-    priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
-    # load pre-trained model first (if there is any)
-    # dqn.load(result_path)
-
-    # Construct validation memory
-    val_mem = ReplayMemory(args, args.evaluation_size, env.reset(), max_action)
-
-    T, done = 0, True
-    env.episode_num = 0
-    episode_timesteps = 0  ## counting timesteps in one episode
-    print(" ------------ validation ---------- ")
-    while T < args.evaluation_size:
-        if done:
-            print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (
-            T, env.episode_num, episode_timesteps, env.total_reward))
-            env.render(save_image=False)
-            state, done = env.reset(random_needle=args.random_needle), False
-            env.episode_num += 1
-            episode_timesteps = 0
-
-        next_state, _, done = env.step(random.randint(0, action_dim - 1))
-        val_mem.append(state, None, None, done)
-        state = next_state
-        T += 1
-        episode_timesteps += 1
-
-    if args.evaluate:
-        dqn.eval()  # Set DQN (online network) to evaluation mode
-        best_avg_reward, avg_reward, avg_Q = test(env.episode_num, args, 0, dqn, val_mem, test_path, result_path, evaluate=True)  # Test
-        print('Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
-
-    else:
-        # Training loop
-        dqn.train()
-        T, done = 0, True
-        episode_timesteps = 0
-        while T < args.T_max:
-            if done:
-                print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f") % (
-                T, env.episode_num, episode_timesteps, env.total_reward))
-                if env.episode_num % 20 == 0:
-                    env.render(save_image=True, save_path=save_path)
-                state, done = env.reset(random_needle=args.random_needle), False
-                env.episode_num += 1
-                episode_timesteps = 0
-
-            if T % args.replay_frequency == 0:
-                dqn.reset_noise()  # Draw a new set of noisy weights
-
-            state = state.to(args.device)
-            action = dqn.act(state)  # Choose an action greedily (with noisy weights)
-            next_state, reward, done = env.step(action)  # Step
-            if args.reward_clip > 0:
-                reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
-            mem.append(state, action, reward, done)  # Append transition to memory
-            T += 1
-            episode_timesteps += 1
-
-            if T % args.log_interval == 0:
-                log('T = ' + str(T) + ' / ' + str(args.T_max))
-
-            # Train and test
-            if T >= args.learn_start:
-                mem.priority_weight = min(mem.priority_weight + priority_weight_increase,
-                                          1)  # Anneal importance sampling weight β to 1
-                # print("update")
-
-                if T % args.replay_frequency == 0:
-                    # print("replay freq")
-                    dqn.learn(mem)  # Train with n-step distributional double-Q learning
-                    # print("dqn.learn pass")
-
-                if T % args.evaluation_interval == 0:
-                    # print("evaluation inter")
-                    dqn.eval()  # Set DQN (online network) to evaluation mode
-                    # print("dqn.eval pass")
-                    avg_reward, avg_Q = test(env.episode_num, args, T, dqn, val_mem, test_path, result_path, )  # Test
-
-                    log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(
-                        avg_reward) + ' | Avg. Q: ' + str(avg_Q))
-                    dqn.train()  # Set DQN (online network) back to training mode
-                    # print("dqn.train pass")
-
-                # Update target network
-                if T % args.target_update == 0:
-                    # print("target update")
-                    dqn.update_target_net()
-                    # print("dqn.update pass")
-
-            state = next_state
-
-    return best_avg_reward
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--disable-cuda', default=False, action='store_true',
@@ -496,7 +351,7 @@ if __name__ == "__main__":
     parser.add_argument("--profile", default=False, action="store_true",
         help="Profile the program for performance")
     parser.add_argument("--mode", default = 'state',
-        help="Choose image or state, options are rgb_array, gray_array and state")
+        help="Choose image or state, options are rgb_array and state")
     parser.add_argument("--buffer", default = 'priority', # 'priority'
         help="Choose type of buffer, options are simple and priority")
     parser.add_argument("--random-needle", default = False, action='store_true',
@@ -529,47 +384,6 @@ if __name__ == "__main__":
     parser.add_argument("--load-encoder", default='', type=str,
         help="File from which to load the encoder model")
 
-    #--- Parameters for rainbow
-    parser.add_argument('--max-episode-length', type=int, default=int(108e3), metavar='LENGTH',
-                        help='Max episode length (0 to disable)')
-    parser.add_argument('--history-length', type=int, default=4, metavar='T',
-                        help='Number of consecutive states processed')
-    parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
-    parser.add_argument('--noisy-std', type=float, default=1.0, metavar='σ',
-                        help='Initial standard deviation of noisy linear layers')
-    parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
-    parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
-    parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
-    parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
-    parser.add_argument('--memory-capacity', type=int, default=50000, metavar='CAPACITY',
-                        help='Experience replay memory capacity')
-    parser.add_argument('--replay-frequency', type=int, default=4, metavar='k',
-                        help='Frequency of sampling from memory')
-    parser.add_argument('--priority-exponent', type=float, default=0.5, metavar='ω',
-                        help='Prioritised experience replay exponent (originally denoted α)')
-    parser.add_argument('--priority-weight', type=float, default=0.4, metavar='β',
-                        help='Initial prioritised experience replay importance sampling weight')
-    parser.add_argument('--multi-step', type=int, default=3, metavar='n', help='Number of steps for multi-step return')
-    parser.add_argument('--discount', type=float, default=0.99, metavar='γ', help='Discount factor')
-    parser.add_argument('--target-update', type=int, default=int(8e3), metavar='τ',
-                        help='Number of steps after which to update target network')
-    parser.add_argument('--reward-clip', type=int, default=1, metavar='VALUE', help='Reward clipping (0 to disable)')
-    parser.add_argument('--learning_rate', type=float, default=0.0000625, metavar='η', help='Learning rate')
-    parser.add_argument('--adam-eps', type=float, default=1.5e-4, metavar='ε', help='Adam epsilon')
-    parser.add_argument('--batch-size', type=int, default=32, metavar='SIZE', help='Batch size')
-    parser.add_argument('--learn-start', type=int, default=int(20e3), metavar='STEPS',
-                        help='Number of steps before starting training')
-    parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
-    parser.add_argument('--evaluation-interval', type=int, default=100000, metavar='STEPS',
-                        help='Number of training steps between evaluations')
-    parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N',
-                        help='Number of evaluation episodes to average over')
-    parser.add_argument('--evaluation-size', type=int, default=500, metavar='N',
-                        help='Number of transitions to use for validating Q')
-    parser.add_argument('--log-interval', type=int, default=50, metavar='STEPS',
-                        help='Number of training steps between logging status')
-    #---
-
     parser.add_argument("filename", help='File for environment')
     parser.add_argument("policy", default="TD3", type=str,
             help="Policy type. DDPG/TD3/DQN")
@@ -583,12 +397,6 @@ if __name__ == "__main__":
 
     if args.profile:
         import cProfile
-        if args.policy == 'rainbow':
-            cProfile.run_rainbow('run(args)', sort='cumtime')
-        else:
-            cProfile.run('run(args)', sort='cumtime')
+        cProfile.run('run(args)', sort='cumtime')
     else:
-        if args.policy == 'rainbow':
-            run_rainbow(args)
-        else:
-            run(args)
+        run(args)
