@@ -3,12 +3,16 @@ import random
 import torch
 from torch import optim
 
-from .model import DQN_state, DQN_image
+<<<<<<< HEAD
+from .model import DQN
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+=======
+from .model import DQNConv, DQN_FC
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
 
 
 class Agent():
-  def __init__(self, args, state_dim, env):
+  def __init__(self, args, env):
     self.action_space = env.action_space()
     self.atoms = args.atoms
     self.Vmin = args.V_min
@@ -18,25 +22,19 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
-    self.mode = args.mode
-    self.state_dim = state_dim
 
-
-    if self.mode == 'state':
-      self.online_net = DQN_state(self.state_dim, args, self.action_space).to(device)
-    else:
-      self.online_net = DQN_image(args, self.action_space).to(device)
-
+<<<<<<< HEAD
+    self.online_net = DQN(args, self.action_space).to(device)
+=======
+    # Choose which DQN to use
+    self.online_net = DQN(args, self.action_space).to(device=args.device)
+>>>>>>> 0b468b99146f0e23d2d2773d2938d305054247d5
     if args.model and os.path.isfile(args.model):
       # Always load tensors onto CPU by default, will shift to GPU if necessary
       self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
     self.online_net.train()
 
-    if self.mode == 'state':
-      self.target_net = DQN_state(self.state_dim, args, self.action_space).to(device)
-    else:
-      self.target_net = DQN_image(args, self.action_space).to(device)
-
+    self.target_net = DQN(args, self.action_space).to(device)
     self.update_target_net()
     self.target_net.train()
     for param in self.target_net.parameters():
@@ -62,7 +60,8 @@ class Agent():
 
   def learn(self, mem):
     # Sample transitions
-    idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
+    idxs, states, actions, returns, next_states, nonterminals, weights = \
+        mem.sample(self.batch_size)
 
     # Calculate current state probabilities (online network noise already sampled)
     log_ps = self.online_net(states, log=True)  # Log probabilities log p(s_t, ·; θonline)
